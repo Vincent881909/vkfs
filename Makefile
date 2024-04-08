@@ -8,8 +8,10 @@ TARGET = $(SRC_DIR)/hybridfs
 SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 
-IMAGE=myhfs.img
-MOUNTPOINT=mnt
+MOUNTPOINT=mntdir
+METADATA_DIR=metadir
+DATA_DIR=datadir
+
 
 all: $(TARGET)
 
@@ -23,20 +25,8 @@ $(TARGET): $(OBJECTS)
 clean:
 	rm -f $(SRC_DIR)/*.o $(TARGET)
 
-.PHONY: image mount unmount
-image:
-	dd if=/dev/zero of=$(IMAGE) bs=1M count=512
-	mkfs.ext4 $(IMAGE)
-
-mount:
-	mkdir -p mnt
-	sudo mount -o loop $(IMAGE) $(MOUNTPOINT)
-
-unmount:
-	sudo umount $(MOUNTPOINT)
-
 .PHONY: run
 run:
-	./src/hybridfs -i myhfs.img mnt -d
+	./src/hybridfs $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
 
 
