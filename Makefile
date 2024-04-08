@@ -3,34 +3,40 @@ CFLAGS = -Wall `pkg-config fuse --cflags`
 LDFLAGS = `pkg-config fuse --libs`
 
 SRC_DIR = src
-OBJ_DIR = obj
-BIN_DIR = bin
+TARGET = $(SRC_DIR)/hybridfs
 
 SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
-OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
-TARGET = $(BIN_DIR)/your_filesystem_name
+OBJECTS = $(SOURCES:.cpp=.o)
+
+IMAGE=myhfs.img
+MOUNTPOINT=mnt
+
+all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $^ -o $@ $(LDFLAGS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+%.o: %.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
-
-$(OBJ_DIR):
-	mkdir -p $@
-
-$(BIN_DIR):
-	mkdir -p $@
 
 .PHONY: clean
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	rm -f $(SRC_DIR)/*.o $(TARGET)
 
-.PHONY: mount
+.PHONY: image mount unmount
+image:
+	dd if=/dev/zero of=$(IMAGE) bs=1M count=512
+	mkfs.ext4 $(IMAGE)
+
 mount:
-	mkdir -p /mount/point
-	./$(TARGET) /mount/point
+	mkdir -p mnt
+	sudo mount -o loop $(IMAGE) $(MOUNTPOINT)
 
-.PHONY: unmount
 unmount:
-	fusermount -u /mount/point
+	sudo umount $(MOUNTPOINT)
+
+.PHONY: run
+run:
+	./src/hybridfs -i myhfs.img mnt -d
+
+
