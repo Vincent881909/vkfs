@@ -1,5 +1,7 @@
 .vscode/
-/mnt
+/mntdir
+/datadir
+/metadir
 *.img
 *.o
 hybridfs
