@@ -2,7 +2,6 @@
 /mntdir
 /datadir
 /metadir
-*.img
 *.o
 hybridfs
 
