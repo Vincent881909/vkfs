@@ -29,4 +29,20 @@ clean:
 run:
 	./src/hybridfs $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
 
+.PHONY: fileset
+fileset:
+	sudo filebench -f workloads/createfiles.f
+
+.PHONY: benchmark1
+benchmark1:
+	sudo filebench -f workloads/deletefiles.f
+
+.PHONY: benchmark2
+benchmark2:
+	sudo filebench -f workloads/listdirs.f
+
+.PHONY: benchmark3
+benchmark3:
+	sudo filebench -f workloads/statfiles.f
+
 
