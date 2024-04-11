@@ -29,6 +29,7 @@ int main(int argc, char *argv[]){
     fuse_argv[fuse_argc++] = "-f"; //Run Fuse in the Foreground
     fuse_argv[fuse_argc++] = "-d"; //Verbose debug output
     fuse_argv[fuse_argc++] = "-s"; //Single threaded mode
+    fuse_argv[fuse_argc++] = "-oallow_other"; // Allow access to other users
  
     int fuse_state;
 
