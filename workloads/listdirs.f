@@ -5,8 +5,9 @@ set $dir=/home/parallels/Developer/hybridfs/mntdir
 set $nfiles=50000
 set $meandirwidth=5
 set $nthreads=16
+set $meanfilesize=4k
 
-define fileset name=bigfileset,path=$dir,size=0,entries=$nfiles,dirwidth=$meandirwidth,prealloc
+define fileset name=bigfileset,path=$dir,size=$meanfilesize,entries=$nfiles,dirwidth=$meandirwidth,prealloc
 
 define process name=lsdir,instances=1
 {

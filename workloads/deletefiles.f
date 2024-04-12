@@ -3,7 +3,7 @@
 
 set $dir=/home/parallels/Developer/hybridfs/mntdir
 set $count=1000
-set $filesize=16k
+set $filesize=4kb
 set $nfiles=5000
 set $meandirwidth=100
 set $nthreads=16
