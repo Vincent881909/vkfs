@@ -1,52 +1,56 @@
-CC = g++
-CFLAGS = -Wall `pkg-config fuse --cflags`
-LDFLAGS = `pkg-config fuse --libs`
+CXX         := g++
+CXX_FLAGS   := -Wall -Wextra -std=c++17 -D_FILE_OFFSET_BITS=64
+BIN         := bin
+SRC         := src
+INCLUDE     := include
+LIBRARIES   := -lfuse
+EXECUTABLE  := hybridfs
 
-SRC_DIR = src
-TARGET = $(SRC_DIR)/hybridfs
+MOUNTPOINT   := mntdir
+METADATA_DIR := metadir
+DATA_DIR     := datadir
 
-SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
-OBJECTS = $(SOURCES:.cpp=.o)
+SOURCES     := $(wildcard $(SRC)/*.cpp)
+OBJECTS     := $(SOURCES:$(SRC)/%.cpp=$(BIN)/%.o)
+DEPENDENCIES:= $(OBJECTS:.o=.d)
 
-MOUNTPOINT=mntdir
-METADATA_DIR=metadir
-DATA_DIR=datadir
+ROCKSDB_DIR := /home/parallels/Developer/rocksdb
+ROCKSDB_LIB := $(ROCKSDB_DIR)/librocksdb.a
+COMPRESSION_LIB := -lsnappy -lgflags -lz -lbz2 -llz4 -lzstd -lpthread -lrt -ldl
 
+all: $(BIN)/$(EXECUTABLE)
 
-all: $(TARGET)
+run: $(BIN)/$(EXECUTABLE)
+	./$< $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
 
-$(TARGET): $(OBJECTS)
-	$(CC) $^ -o $@ $(LDFLAGS)
+$(BIN)/$(EXECUTABLE): $(OBJECTS) $(ROCKSDB_LIB)
+	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) $^ -o $@ $(LIBRARIES) $(COMPRESSION_LIB)
 
-%.o: %.cpp
-	$(CC) $(CFLAGS) -c $< -o $@
+-include $(DEPENDENCIES)
 
-.PHONY: clean
+$(BIN)/%.o: $(SRC)/%.cpp
+	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) -MMD -MP -c $< -o $@
+
 clean:
-	rm -f $(SRC_DIR)/*.o $(TARGET)
+	-rm -f $(BIN)/*.o $(BIN)/$(EXECUTABLE) $(DEPENDENCIES) $(ROCKSDB_LIB)
 
-.PHONY: run
-run:
-	./src/hybridfs $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
-.PHONY: benchmark1
+$(ROCKSDB_LIB):
+	cd $(ROCKSDB_DIR) && $(MAKE) static_lib
+
+.PHONY: benchmark1 benchmark2 benchmark3 benchmark4 benchmark5 all_benchmarks
 benchmark1:
 	sudo filebench -f workloads/deletefiles.f
 
-.PHONY: benchmark2
 benchmark2:
 	sudo filebench -f workloads/listdirs.f
 
-.PHONY: benchmark3
 benchmark3:
 	sudo filebench -f workloads/statfiles.f
 
-.PHONY: benchmark4
 benchmark4:
 	sudo filebench -f workloads/makedirs.f
 
-.PHONY: benchmark5
 benchmark5:
 	sudo filebench -f workloads/removedirs.f
 
-.PHONY: all_benchmarks
 all_benchmarks: benchmark1 benchmark2 benchmark3 benchmark4 benchmark5
