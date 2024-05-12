@@ -1,9 +1,9 @@
 #define FUSE_USE_VERSION 26
 
-#include <iostream>
-#include <fuse.h>
 #include "../include/hfs.h"
 #include "../include/hfs_state.h"
+#include <iostream>
+#include <fuse.h>
 #include <assert.h>
 #include <string.h>
 #include "rocksdb/db.h"
@@ -12,7 +12,9 @@
 
 struct fuse_operations hfs_oper = {
   .getattr = hfs_getattr,
+  .readdir = hfs_readdir,
   .init = hfs_init
+
 };
 
 std::string getCurrentPath(){

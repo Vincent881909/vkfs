@@ -13,6 +13,7 @@ private:
     u_int dataThreshold;
     int maxInodeNum;
     rocksdb::DB* metaDataDB;
+    bool rootInitialized = false;
 
 public:
     // Constructor
@@ -21,11 +22,16 @@ public:
                         const std::string& datadir,
                         u_int dataThreshold,
                         rocksdb::DB* metaDataDB,
-                        int maxInodeNum = 0);
+                        int maxInodeNum = 0,
+                        bool rootInitalized = false);
 
     // Member functions
     void printState() const;
-    void* getMetaDataDB() const;
+    rocksdb::DB* getMetaDataDB() const;
+    void initalizeRoot();
+    bool getRootInitFlag();
+    int getMaxInodeNumber();
+    void incrementInodeNumber();
 };
 
 #endif
