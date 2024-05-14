@@ -6,10 +6,12 @@ HFS_FileSystemState::HFS_FileSystemState(const std::string& mntdir,
                                          const std::string& datadir,
                                          u_int dataThreshold,
                                          rocksdb::DB* metaDataDB,
-                                         int maxInodeNum, bool rootInitialzed)
+                                         int maxInodeNum, 
+                                         bool rootInitialzed,
+                                         bool idsInitialized)
     : mntdir(mntdir), metadir(metadir), datadir(datadir),
       dataThreshold(dataThreshold), metaDataDB(metaDataDB),
-      maxInodeNum(maxInodeNum), rootInitialized(rootInitialized) {}
+      maxInodeNum(maxInodeNum), rootInitialized(rootInitialized), idsInitialized(idsInitialized) {}
 
 // Definition of printState function
 void HFS_FileSystemState::printState() const {
@@ -34,6 +36,14 @@ bool HFS_FileSystemState::getRootInitFlag() {
     return rootInitialized;
 }
 
+bool HFS_FileSystemState::getIDFlag() {
+    return idsInitialized;
+}
+
+void HFS_FileSystemState::setIDFlag() {
+    idsInitialized = true;
+}
+
 int HFS_FileSystemState::getMaxInodeNumber(){
     return maxInodeNum;
 }
@@ -41,3 +51,6 @@ int HFS_FileSystemState::getMaxInodeNumber(){
 void HFS_FileSystemState::incrementInodeNumber(){
     maxInodeNum++;
 }
+
+
+

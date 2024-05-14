@@ -20,8 +20,8 @@ struct hfs_inode_value{
 };
 
 struct hfs_inode_value_serialized{
-    char* data;
     uint64_t size;
+    char* data;
 };
 
 static const size_t HFS_INODE_VALUE_SIZE = sizeof(hfs_inode_value);
