@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fuse.h>
+#include <filesystem>
 
 void printMetaData(rocksdb::DB* db, const hfs_inode_key key){
     printf("\n\n");
@@ -201,6 +202,8 @@ rocksdb::DB* createMetaDataDB(std::string metadir) {
 
     std::string db_path = getCurrentPath() + "/" + metadir;
     std::cout << "Path for DB: " << db_path << "\n";
+
+    std::filesystem::remove_all(db_path);
 
     // Open the database
     rocksdb::DB* db;

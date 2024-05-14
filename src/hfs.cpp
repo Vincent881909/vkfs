@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <fuse.h>
+#include <vector>
 #include <../include/hfs_inode.h>
 #include <../include/hfs_utils.h>
 
@@ -69,9 +70,12 @@ void retrieveAndPrintRootNode(rocksdb::DB* db, struct hfs_inode_key *key) {
 
 int hfs_getattr(const char *path, struct stat *statbuf){
     printf("\n\n");
-    printf("Get attribute called for %s\n",path);
+    char* path_copy = strdup(path);
+
+
+    printf("Get attribute called for %s\n",path_copy);
     int res = 0;
-    struct hfs_inode_key key = retrieveKey(path);
+    struct hfs_inode_key key = retrieveKey(path_copy);
     struct fuse_context* context = fuse_get_context();
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
 
@@ -100,15 +104,15 @@ int hfs_getattr(const char *path, struct stat *statbuf){
 
         printStatStructure(filestructure);
         printf("\n\n\n");
-    } else if(strncmp(getParentDirectory(path).c_str(), "/", 1) == 0){ //Parent direcotry is root
+    } else if(strncmp(getParentDirectory(path_copy).c_str(), "/", 1) == 0){ //Parent direcotry is root
         printf("Is called for a file or dir in root directory\n");
         hfs_inode_key current_key;
         current_key.inode_number = ROOT_INODE_ID; //Inode ID of parent directory (root)
 
-        std::string filenameStr = get_filename_from_path(path);
+        std::string filenameStr = get_filename_from_path(path_copy);
         const char* filename = filenameStr.c_str();
 
-        current_key.inode_number_hashed = murmur64(path, strlen(filename), 123);
+        current_key.inode_number_hashed = murmur64(path_copy, strlen(filename), 123);
 
         printf("Key used for stat retrieval:\n");
         printf("Parent Inode: %d", current_key.inode_number);
@@ -146,8 +150,12 @@ int hfs_getattr(const char *path, struct stat *statbuf){
 
 int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi){
     printf("\n\n");
-    printf("Readdir called with path: %status",path);
+    char* path_copy = strdup(path);
+    printf("Readdir called with path: %s\n",path_copy);
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
+
+    (void)filler;
+    (void)buf;
 
     if (filler(buf, ".", NULL, 0) < 0) {
         return -ENOMEM;
@@ -158,27 +166,70 @@ int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
 
 
 
+
+    if (strcmp(path_copy, "/") == 0) {
+
+        hfs_inode_key start_key = { ROOT_INODE_ID, 0 };
+        hfs_inode_key end_key = { ROOT_INODE_ID + 1, 0 }; 
+
+        rocksdb::ReadOptions options;
+        std::unique_ptr<rocksdb::Iterator> it(hfsState->getMetaDataDB()->NewIterator(options));
+
+        // Iterate over all entries in the root directory
+        for (it->Seek(getKeySlice(start_key)); it->Valid() && it->key().compare(getKeySlice(end_key)) < 0; it->Next()) {
+            hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(const_cast<char*>(it->value().data()));
+            
+            // Deserialize the filename
+            const char* filename = it->value().data() + HFS_INODE_VALUE_SIZE;
+            printf("Found file: %s\n", filename);
+
+            if (inodeValue->file_structure.st_ino == 0) {
+                printf("Root entry found..\n");
+                continue;
+            }
+
+            // Fill the buffer with the directory entry
+            if (filler(buf, filename, &inodeValue->file_structure, 0) < 0) {
+                printf("Using filler function...\n");
+                return -ENOMEM;
+            }
+        }
+
+        if (!it->status().ok()) {
+            std::cerr << "Iterator error: " << it->status().ToString() << std::endl;
+            return -EIO;
+        }
+    }
+
+
+
+    
+
+
+
+
+
     return 0;
 }
 
 int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi){
     printf("\n\n");
-
+    char* path_copy = strdup(path);
     struct fuse_context* context = fuse_get_context();
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
 
-    std::string parentDirStr = getParentDirectory(path);
+    std::string parentDirStr = getParentDirectory(path_copy);
     const char* parentDir = parentDirStr.c_str();
-    std::string filenameStr = get_filename_from_path(path);
+    std::string filenameStr = get_filename_from_path(path_copy);
     const char* filename = filenameStr.c_str();
 
-    printf("Create is called with path: %s \n",path);
+    printf("Create is called with path: %s \n",path_copy);
     printf("Parent directory is %s \n",parentDir);
     printf("Filename is %s \n", filename);
 
     if(strcmp(parentDir,ROOT_INODE) == 0){ //Parent directory is root
         struct hfs_inode_key key;
-        createMetaDataKey(path,strlen(filename),key,ROOT_INODE_ID);
+        createMetaDataKey(path_copy,strlen(filename),key,ROOT_INODE_ID);
 
         if(keyExists(key,hfsState->getMetaDataDB())){
             printf("File or directory with name: %s lready exists\n",filename);
