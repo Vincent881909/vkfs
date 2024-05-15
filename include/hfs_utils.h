@@ -56,4 +56,12 @@ void updateMetaData(rocksdb::DB* db, struct hfs_inode_key key, std::string filen
 
 std::string getFileNamefromKey(rocksdb::DB* db,struct hfs_inode_key key);
 
+hfs_inode_key getKeyFromPath(const char* path, uint64_t parent_inode);
+
+int getParentInodeNumber(const char* path);
+
+std::string getParentPath(const std::string& path);
+
+uint64_t getInodeFromPath(const char* path,rocksdb::DB* db,std::string filename);
+
 #endif

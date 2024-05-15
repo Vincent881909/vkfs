@@ -13,11 +13,11 @@
 
 struct fuse_operations hfs_oper = {
   .getattr = hfs_getattr,
+  .mkdir = hfs_mkdir,
   .readdir = hfs_readdir,
   .init = hfs_init,
   .create = hfs_create,
   .utimens = hfs_utimens
-
 };
 
 int main(int argc, char *argv[]){

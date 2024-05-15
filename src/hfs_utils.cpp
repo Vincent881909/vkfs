@@ -17,20 +17,15 @@ void printMetaData(rocksdb::DB* db, const hfs_inode_key key){
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(), getKeySlice(key), &valueData);
 
     if (status.ok()) {
-        // Assuming valueData is directly deserializable to hfs_inode_value_serialized
         hfs_inode_value_serialized inodeData;
-        inodeData.data = &valueData[0];  // Point to the data in the retrieved string
+        inodeData.data = &valueData[0]; 
         inodeData.size = valueData.size();
 
-        // Deserialize the inode value (assuming data is stored in expected format)
         hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(inodeData.data);
-        printStatStructure(inodeValue->file_structure);
+        //printStatStructure(inodeValue->file_structure);
         printf("\n");
-
-        // Calculate the start of the filename within valueData
         const char* filename = valueData.c_str() + sizeof(hfs_inode_value);
 
-        // Print the filename
         std::cout << "Filename: " << filename << std::endl;
 
     } else if (status.IsNotFound()) {
@@ -46,17 +41,15 @@ std::string getFileNamefromKey(rocksdb::DB* db,struct hfs_inode_key key){
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(), getKeySlice(key), &valueData);
 
     if (status.ok()) {
-        // Assuming valueData is directly deserializable to hfs_inode_value_serialized
+
         hfs_inode_value_serialized inodeData;
-        inodeData.data = &valueData[0];  // Point to the data in the retrieved string
+        inodeData.data = &valueData[0];  
         inodeData.size = valueData.size();
 
-        // Deserialize the inode value (assuming data is stored in expected format)
         hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(inodeData.data);
         printStatStructure(inodeValue->file_structure);
         printf("\n");
 
-        // Calculate the start of the filename within valueData
         const char* filename = valueData.c_str() + sizeof(hfs_inode_value);
         
         return filename;
@@ -66,13 +59,13 @@ std::string getFileNamefromKey(rocksdb::DB* db,struct hfs_inode_key key){
 hfs_inode_key retrieveKey(const char* path){
     printf("Retrieve Key function called for path %s\n",path);
     struct hfs_inode_key key;
-    if(strcmp(path,"/") == 0){  //Root directory
-        key.inode_number = ROOT_INODE_ID;
-        key.inode_number_hashed = murmur64(path, 0, 123);
-        printf("Inode Number retrieved for path: %s, :%d\n",path,key.inode_number);
-        printf("Inode Number Hashed retrieved for path: %s, :%llu\n",path,key.inode_number_hashed);
-        return key;
-    } 
+    key.inode_number = getParentInodeNumber(path);
+    std::string filename = get_filename_from_path(path);
+    const char* filenameCstr = filename.c_str();
+    key.inode_number_hashed = murmur64(path, strlen(filenameCstr), 123);
+    printf("Inode Number retrieved for path: %s, :%d\n",path,key.inode_number);
+    printf("Inode Number Hashed retrieved for path: %s, :%llu\n",path,key.inode_number_hashed);
+    return key;
 }
 
 void printStatStructure(const struct stat& statbuf) {
@@ -203,7 +196,7 @@ rocksdb::DB* createMetaDataDB(std::string metadir) {
     std::string db_path = getCurrentPath() + "/" + metadir;
     std::cout << "Path for DB: " << db_path << "\n";
 
-    std::filesystem::remove_all(db_path);
+    std::filesystem::remove_all(db_path); //Erase existing Database entries for now upon runtime
 
     // Open the database
     rocksdb::DB* db;
@@ -222,21 +215,13 @@ rocksdb::DB* createMetaDataDB(std::string metadir) {
 }
 
 std::string getParentDirectory(const std::string& path) {
-    if (path == "/") { // Root directory
-        return "/";
-    }
+    if (path == "/") {return "/";} //Root
 
     size_t lastSlash = path.find_last_of("/");
     
-    if (lastSlash == std::string::npos) {
-        // No slash found, implying the path is a file or directory in the current directory
-        return ".";
-    } else if (lastSlash == 0) {
-        // The path is in the root directory
-        return "/";
-    }
+    if (lastSlash == std::string::npos) {return ".";} 
+    else if (lastSlash == 0) {return "/";}
 
-    // Return the substring from the start to the last slash
     return path.substr(0, lastSlash);
 }
 
@@ -406,6 +391,153 @@ void updateMetaData(rocksdb::DB* db, struct hfs_inode_key key, std::string filen
         std::cerr << "MetaData Update failed: " << status.ToString() << std::endl;
     }
 }
+
+hfs_inode_key getKeyFromPath(const char* path, uint64_t parent_inode) {
+    hfs_inode_key key;
+    key.inode_number = parent_inode;
+    key.inode_number_hashed = murmur64(path, strlen(path), 123);
+    return key;
+}
+
+std::string getParentPath(const std::string& path) {
+    // Edge case: if the path is root ("/"), return "/"
+    if (path == "/") {
+        return "/";
+    }
+
+    // Remove any trailing slashes from the path
+    size_t pathLength = path.length();
+    while (pathLength > 1 && path[pathLength - 1] == '/') {
+        --pathLength;
+    }
+
+    // Find the position of the last slash
+    size_t lastSlashPos = path.find_last_of('/', pathLength - 1);
+
+    // Edge case: if there is no slash or the only slash is the first character, return "/"
+    if (lastSlashPos == std::string::npos) {
+        return ".";
+    }
+
+    if (lastSlashPos == 0) {
+        return "/";
+    }
+
+    // Return the substring from the start to the last slash
+    return path.substr(0, lastSlashPos);
+}
+
+int getParentInodeNumber(const char* path) {
+    printf("Get Parent Inode Number function called for path: %s\n", path);
+    
+    if (strcmp(path, "/") == 0) { //Root
+        printf("The path is root.\n");
+        return ROOT_INODE_ID;
+    }
+
+    std::string pathStr(path);
+    std::string parentDirStr = getParentDirectory(pathStr);
+    
+    if (parentDirStr == "/") { //Parent is root
+        printf("Parent directory is root.\n");
+        return ROOT_INODE_ID;
+    }
+
+    std::string parentPath = getParentPath(pathStr);
+    printf("getParentPath returned: %s\n",parentPath.c_str());
+
+    // Split parent directory into components
+    std::vector<std::string> pathComponents;
+
+    size_t pos = 0;
+    while ((pos = parentPath.find('/')) != std::string::npos) {
+        if (pos != 0) {
+            pathComponents.push_back(parentPath.substr(0, pos));
+        }
+        parentPath.erase(0, pos + 1);
+    }
+    if (!parentPath.empty()) {
+        pathComponents.push_back(parentPath);
+    }
+
+
+    printf("Components in vector: ");
+    printf("Component size %d \n",pathComponents.size());
+    for(int i = 0; i < pathComponents.size();i++){
+        printf("%s\n",pathComponents[i].c_str());
+    }
+
+
+    uint64_t parent_inode = ROOT_INODE_ID;
+    hfs_inode_key key;
+    key.inode_number = parent_inode;
+
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
+    rocksdb::DB* metaDataDB = hfsState->getMetaDataDB();
+    std::string currentPath = "/";
+
+    for (const std::string& component : pathComponents) {
+        printf("Entering for loop...\n");
+        printf("Current path: %s\n",currentPath.c_str());
+        currentPath = currentPath + component;
+        printf("Currently looking at this component: %s\n", component.c_str());
+        printf("Current path after concatenation: %s\n",currentPath.c_str());
+        key = getKeyFromPath(currentPath.c_str(), parent_inode);
+        key.inode_number_hashed = murmur64(currentPath.c_str(), strlen(component.c_str()), 123);
+
+    
+        if (!keyExists(key, metaDataDB)) {
+            printf("Component %s not found!\n", component.c_str());
+            return -1; //File or directory does not exist in MetaDataDB
+        }
+
+        struct hfs_inode_value inodeValue = returnInodeValuefromKey(metaDataDB, key);
+        printf("Inode returned for current component: %d\n",inodeValue.file_structure.st_ino);
+        parent_inode = inodeValue.file_structure.st_ino;
+        currentPath = currentPath + "/";
+    }
+
+    printf("Parent inode number retrieved for path: %s, :%lu\n", path, parent_inode);
+    return parent_inode;
+}
+
+
+uint64_t getInodeFromPath(const char* path,rocksdb::DB* db,std::string filename){
+
+    printf("\n\n");
+    printf("Entered getInodeFromPath with path %s\n", path);
+
+    if(strcmp(path,ROOT_INODE) == 0){ //Is root
+        printf("Rode Node ID returned\n");
+        return ROOT_INODE_ID;
+    }
+
+    uint64_t parentInode = getParentInodeNumber(path);
+
+    hfs_inode_key start_key = { parentInode, 0 };
+    hfs_inode_key end_key = { parentInode + 1, 0 };
+
+    rocksdb::ReadOptions options;
+    std::unique_ptr<rocksdb::Iterator> it(db->NewIterator(options));
+
+    for (it->Seek(getKeySlice(start_key)); it->Valid() && it->key().compare(getKeySlice(end_key)) < 0; it->Next()) {
+ 
+        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(const_cast<char*>(it->value().data()));
+
+        const char* currentFilename = it->value().data() + HFS_INODE_VALUE_SIZE;
+
+        if(strcmp(currentFilename,filename.c_str()) == 0){
+            printf("Filename found.Inode returned: %d\n", inodeValue->file_structure.st_ino);
+            return inodeValue->file_structure.st_ino;
+        }
+    }
+
+    if (!it->status().ok()) {
+        std::cerr << "Iterator error: " << it->status().ToString() << std::endl;
+    }
+}
+
+
 
 
 

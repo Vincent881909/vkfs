@@ -2,10 +2,10 @@
 # operations on them for a specified amount of time.
 
 set $dir=/home/parallels/Developer/hybridfs/mntdir
-set $nfiles=50000
-set $meandirwidth=5
-set $nthreads=16
-set $meanfilesize=4k
+set $nfiles=5
+set $meandirwidth=1
+set $nthreads=1
+set $meanfilesize=0
 
 define fileset name=bigfileset,path=$dir,size=$meanfilesize,entries=$nfiles,dirwidth=$meandirwidth,prealloc
 
