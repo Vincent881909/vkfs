@@ -44,7 +44,7 @@ void HFS_FileSystemState::setIDFlag() {
     idsInitialized = true;
 }
 
-int HFS_FileSystemState::getMaxInodeNumber(){
+int HFS_FileSystemState::getNextInodeNumber(){
     return maxInodeNum;
 }
 

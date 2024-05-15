@@ -34,7 +34,7 @@ public:
     bool getRootInitFlag();
     bool getIDFlag();
     void setIDFlag();
-    int getMaxInodeNumber();
+    int getNextInodeNumber();
     void incrementInodeNumber();
 };
 

@@ -9,7 +9,7 @@
 #include <fuse.h>
 #include <filesystem>
 
-void printMetaData(rocksdb::DB* db, const hfs_inode_key key){
+void printMetaData(rocksdb::DB* db, const HFSInodeKey key){
     printf("\n\n");
     printf("Printing MetaData...\n");
 
@@ -17,14 +17,14 @@ void printMetaData(rocksdb::DB* db, const hfs_inode_key key){
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(), getKeySlice(key), &valueData);
 
     if (status.ok()) {
-        hfs_inode_value_serialized inodeData;
+        HFSInodeValueSerialized inodeData;
         inodeData.data = &valueData[0]; 
         inodeData.size = valueData.size();
 
-        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(inodeData.data);
+        HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
         //printStatStructure(inodeValue->file_structure);
         printf("\n");
-        const char* filename = valueData.c_str() + sizeof(hfs_inode_value);
+        const char* filename = valueData.c_str() + sizeof(HFSFileMetaData);
 
         std::cout << "Filename: " << filename << std::endl;
 
@@ -36,31 +36,31 @@ void printMetaData(rocksdb::DB* db, const hfs_inode_key key){
 
 }
 
-std::string getFileNamefromKey(rocksdb::DB* db,struct hfs_inode_key key){
+std::string getFileNamefromKey(rocksdb::DB* db,struct HFSInodeKey key){
     std::string valueData;
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(), getKeySlice(key), &valueData);
 
     if (status.ok()) {
 
-        hfs_inode_value_serialized inodeData;
+        HFSInodeValueSerialized inodeData;
         inodeData.data = &valueData[0];  
         inodeData.size = valueData.size();
 
-        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(inodeData.data);
+        HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
         printStatStructure(inodeValue->file_structure);
         printf("\n");
 
-        const char* filename = valueData.c_str() + sizeof(hfs_inode_value);
+        const char* filename = valueData.c_str() + sizeof(HFSFileMetaData);
         
         return filename;
     }
 }
 
-hfs_inode_key retrieveKey(const char* path){
+HFSInodeKey getKeyfromPath(const char* path){
     printf("Retrieve Key function called for path %s\n",path);
-    struct hfs_inode_key key;
+    struct HFSInodeKey key;
     key.inode_number = getParentInodeNumber(path);
-    std::string filename = get_filename_from_path(path);
+    std::string filename = returnFilenameFromPath(path);
     const char* filenameCstr = filename.c_str();
     key.inode_number_hashed = murmur64(path, strlen(filenameCstr), 123);
     printf("Inode Number retrieved for path: %s, :%d\n",path,key.inode_number);
@@ -96,7 +96,7 @@ void printStatStructure(const struct stat& statbuf) {
 
  
 
-struct stat retrieveStat(rocksdb::DB* metaDataDB,hfs_inode_key key){
+struct stat getFileStat(rocksdb::DB* metaDataDB,HFSInodeKey key){
     printf("\n\n");
     printf("Rretrieve Stat is called...\n");
     std::string valueData;
@@ -107,14 +107,14 @@ struct stat retrieveStat(rocksdb::DB* metaDataDB,hfs_inode_key key){
     rocksdb::Status status = metaDataDB->Get(rocksdb::ReadOptions(), getKeySlice(key), &valueData);
 
     if (status.ok()) {
-        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(valueData.data());
+        HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(valueData.data());
         return inodeValue->file_structure;
     } else {
         printf("Error retrieving stat structure\n");
     }
 }
 
-void createMetaDataKey(const char* path, int len, struct hfs_inode_key &inode, uint64_t maxInoderNumber) {
+void setInodeKey(const char* path, int len, struct HFSInodeKey &inode, uint64_t maxInoderNumber) {
     // Print debug statements for all values
     printf("\n\n");
     printf("CreateMetaDataKey Function is called with parameters: \n");
@@ -158,15 +158,15 @@ void initStat(struct stat &statbuf,mode_t mode){
     statbuf.st_blocks = 0;
 }
 
-hfs_inode_value_serialized initInodeValue(struct stat fileStructure, std::string filename,mode_t mode){
+HFSInodeValueSerialized initInodeValue(struct stat fileStructure, std::string filename,mode_t mode){
     printf("\n\n");
     printf("initNodeValue is called...\n");
-    struct hfs_inode_value_serialized inode_data;
+    struct HFSInodeValueSerialized inode_data;
 
     inode_data.size = HFS_INODE_VALUE_SIZE + filename.length() + 1;
     inode_data.data = new char[inode_data.size];
 
-    struct hfs_inode_value* inode_value = reinterpret_cast<struct hfs_inode_value*>(inode_data.data);
+    struct HFSFileMetaData* inode_value = reinterpret_cast<struct HFSFileMetaData*>(inode_data.data);
     initStat(fileStructure,mode);
     inode_value->file_structure = fileStructure;
     inode_value->has_external_data = false;
@@ -196,7 +196,7 @@ rocksdb::DB* createMetaDataDB(std::string metadir) {
     std::string db_path = getCurrentPath() + "/" + metadir;
     std::cout << "Path for DB: " << db_path << "\n";
 
-    std::filesystem::remove_all(db_path); //Erase existing Database entries for now upon runtime
+    std::filesystem::remove_all(db_path); //Erase existing Database entries upon runtime
 
     // Open the database
     rocksdb::DB* db;
@@ -214,7 +214,7 @@ rocksdb::DB* createMetaDataDB(std::string metadir) {
 
 }
 
-std::string getParentDirectory(const std::string& path) {
+std::string returnParentDir(const std::string& path) {
     if (path == "/") {return "/";} //Root
 
     size_t lastSlash = path.find_last_of("/");
@@ -226,7 +226,7 @@ std::string getParentDirectory(const std::string& path) {
 }
 
 bool pathExists(const char* path,const char* parentPath){
-    struct hfs_inode_key key;
+    struct HFSInodeKey key;
     key.inode_number_hashed = murmur64(parentPath,strlen(parentPath),123);
 
     // TODO
@@ -234,7 +234,7 @@ bool pathExists(const char* path,const char* parentPath){
     return true;
 }
 
-std::string get_filename_from_path(const std::string& path) {
+std::string returnFilenameFromPath(const std::string& path) {
     if (path.empty()) {
         return ""; // Return empty string for empty input
     }
@@ -267,23 +267,23 @@ std::string get_filename_from_path(const std::string& path) {
     }
 }
 
-rocksdb::Slice getKeySlice(const hfs_inode_key& key){
-    return rocksdb::Slice(reinterpret_cast<const char*>(&key), sizeof(hfs_inode_key));
+rocksdb::Slice getKeySlice(const HFSInodeKey& key){
+    return rocksdb::Slice(reinterpret_cast<const char*>(&key), sizeof(HFSInodeKey));
 }
 
-rocksdb::Slice getValueSlice(const hfs_inode_value_serialized value){
+rocksdb::Slice getValueSlice(const HFSInodeValueSerialized value){
     return rocksdb::Slice(value.data, value.size);
 }
 
 
-bool keyExists(hfs_inode_key key,rocksdb::DB* db){
+bool keyExists(HFSInodeKey key,rocksdb::DB* db){
     std::string value;
     rocksdb::Status s = db->Get(rocksdb::ReadOptions(), getKeySlice(key), &value);
     if (s.ok()) {return true;} 
     else if (s.IsNotFound()) {return false;}
 }
 
-void printValueForKey(rocksdb::DB* db, const hfs_inode_key& key) {
+void printValueForKey(rocksdb::DB* db, const HFSInodeKey& key) {
 
     printf("Key inode: %d \n",key.inode_number);
     printf("Key inode hashed: %llu \n",key.inode_number_hashed);
@@ -294,12 +294,12 @@ void printValueForKey(rocksdb::DB* db, const hfs_inode_key& key) {
 
     if (status.ok()) {
         // Assuming valueData is directly deserializable to hfs_inode_value_serialized
-        hfs_inode_value_serialized inodeData;
+        HFSInodeValueSerialized inodeData;
         inodeData.data = &valueData[0];  // Point to the data in the retrieved string
         inodeData.size = valueData.size();
 
         // Deserialize the inode value (assuming data is stored in expected format)
-        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(inodeData.data);
+        HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
         
         // Print the retrieved inode value
         std::cout << "Retrieved inode value for key (" << key.inode_number << ", " << key.inode_number_hashed << "):" << std::endl;
@@ -312,26 +312,26 @@ void printValueForKey(rocksdb::DB* db, const hfs_inode_key& key) {
     }
 }
 
-void printInodeValue(hfs_inode_value &inodeValue){
+void printInodeValue(HFSFileMetaData &inodeValue){
     std::cout << "Filename Length: " << inodeValue.filename_len << std::endl
               << "Has External Data: " << (inodeValue.has_external_data ? "Yes" : "No") << std::endl;
     std::cout << "File structure details:" << std::endl;
     printStatStructure(inodeValue.file_structure);
 }
 
-struct stat returnStatFromKey(rocksdb::DB* db, const hfs_inode_key key){
+struct stat returnStatFromKey(rocksdb::DB* db, const HFSInodeKey key){
     // Retrieve the value from the database
     std::string valueData;
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(), getKeySlice(key), &valueData);
 
     if (status.ok()) {
         // Assuming valueData is directly deserializable to hfs_inode_value_serialized
-        hfs_inode_value_serialized inodeData;
+        HFSInodeValueSerialized inodeData;
         inodeData.data = &valueData[0];  // Point to the data in the retrieved string
         inodeData.size = valueData.size();
 
         // Deserialize the inode value (assuming data is stored in expected format)
-        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(inodeData.data);
+        HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
         return inodeValue->file_structure;
 
 
@@ -343,33 +343,33 @@ struct stat returnStatFromKey(rocksdb::DB* db, const hfs_inode_key key){
 
 }
 
-struct hfs_inode_value returnInodeValuefromKey(rocksdb::DB* db, const hfs_inode_key key){
+struct HFSFileMetaData getMetaDatafromKey(rocksdb::DB* db, const HFSInodeKey key){
     std::string valueData;
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(), getKeySlice(key), &valueData);
 
     if (status.ok()) {
         // Assuming valueData is directly deserializable to hfs_inode_value_serialized
-        hfs_inode_value_serialized inodeData;
+        HFSInodeValueSerialized inodeData;
         inodeData.data = &valueData[0];  // Point to the data in the retrieved string
         inodeData.size = valueData.size();
 
         // Deserialize the inode value (assuming data is stored in expected format)
-        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(inodeData.data);
+        HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
         return *inodeValue;
 
 
     } 
 }
 
-void updateMetaData(rocksdb::DB* db, struct hfs_inode_key key, std::string filename, struct hfs_inode_value inode_value,struct stat new_stat){
+void updateMetaData(rocksdb::DB* db, struct HFSInodeKey key, std::string filename, struct HFSFileMetaData inode_value,struct stat new_stat){
     inode_value.file_structure = new_stat;
 
-    struct hfs_inode_value_serialized inode_data;
+    struct HFSInodeValueSerialized inode_data;
 
     inode_data.size = HFS_INODE_VALUE_SIZE + filename.length() + 1;
     inode_data.data = new char[inode_data.size];
 
-    struct hfs_inode_value* new_inode_value = reinterpret_cast<struct hfs_inode_value*>(inode_data.data);
+    struct HFSFileMetaData* new_inode_value = reinterpret_cast<struct HFSFileMetaData*>(inode_data.data);
     new_inode_value->file_structure = new_stat;
     new_inode_value->filename_len = inode_value.filename_len;
     new_inode_value->has_external_data = inode_value.has_external_data;
@@ -377,7 +377,7 @@ void updateMetaData(rocksdb::DB* db, struct hfs_inode_key key, std::string filen
     memcpy(name_buf, filename.c_str(), filename.length());  
     name_buf[inode_value.filename_len] = '\0';
 
-    hfs_inode_value_serialized value = inode_data;
+    HFSInodeValueSerialized value = inode_data;
 
     rocksdb::Slice dbKey = getKeySlice(key);
     rocksdb::Slice dbValue = getValueSlice(value);
@@ -392,8 +392,8 @@ void updateMetaData(rocksdb::DB* db, struct hfs_inode_key key, std::string filen
     }
 }
 
-hfs_inode_key getKeyFromPath(const char* path, uint64_t parent_inode) {
-    hfs_inode_key key;
+HFSInodeKey getKeyFromPath(const char* path, uint64_t parent_inode) {
+    HFSInodeKey key;
     key.inode_number = parent_inode;
     key.inode_number_hashed = murmur64(path, strlen(path), 123);
     return key;
@@ -436,7 +436,7 @@ int getParentInodeNumber(const char* path) {
     }
 
     std::string pathStr(path);
-    std::string parentDirStr = getParentDirectory(pathStr);
+    std::string parentDirStr = returnParentDir(pathStr);
     
     if (parentDirStr == "/") { //Parent is root
         printf("Parent directory is root.\n");
@@ -469,7 +469,7 @@ int getParentInodeNumber(const char* path) {
 
 
     uint64_t parent_inode = ROOT_INODE_ID;
-    hfs_inode_key key;
+    HFSInodeKey key;
     key.inode_number = parent_inode;
 
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
@@ -491,7 +491,7 @@ int getParentInodeNumber(const char* path) {
             return -1; //File or directory does not exist in MetaDataDB
         }
 
-        struct hfs_inode_value inodeValue = returnInodeValuefromKey(metaDataDB, key);
+        struct HFSFileMetaData inodeValue = getMetaDatafromKey(metaDataDB, key);
         printf("Inode returned for current component: %d\n",inodeValue.file_structure.st_ino);
         parent_inode = inodeValue.file_structure.st_ino;
         currentPath = currentPath + "/";
@@ -514,15 +514,15 @@ uint64_t getInodeFromPath(const char* path,rocksdb::DB* db,std::string filename)
 
     uint64_t parentInode = getParentInodeNumber(path);
 
-    hfs_inode_key start_key = { parentInode, 0 };
-    hfs_inode_key end_key = { parentInode + 1, 0 };
+    HFSInodeKey start_key = { parentInode, 0 };
+    HFSInodeKey end_key = { parentInode + 1, 0 };
 
     rocksdb::ReadOptions options;
     std::unique_ptr<rocksdb::Iterator> it(db->NewIterator(options));
 
     for (it->Seek(getKeySlice(start_key)); it->Valid() && it->key().compare(getKeySlice(end_key)) < 0; it->Next()) {
  
-        hfs_inode_value* inodeValue = reinterpret_cast<hfs_inode_value*>(const_cast<char*>(it->value().data()));
+        HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(const_cast<char*>(it->value().data()));
 
         const char* currentFilename = it->value().data() + HFS_INODE_VALUE_SIZE;
 
@@ -535,6 +535,11 @@ uint64_t getInodeFromPath(const char* path,rocksdb::DB* db,std::string filename)
     if (!it->status().ok()) {
         std::cerr << "Iterator error: " << it->status().ToString() << std::endl;
     }
+}
+
+rocksdb::DB* getDBPtr(struct fuse_context* context){
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(context->private_data);
+    return hfsState->getMetaDataDB();
 }
 
 
