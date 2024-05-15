@@ -40,7 +40,7 @@ int main(int argc, char *argv[]){
     int fuse_state;
     
     u_int dataThreshold = 4096;
-    rocksdb::DB* metaDataDB = createMetaDataDB(metadir);
+    rocksdb::DB* metaDataDB = hfs::db::createMetaDataDB(metadir);
     HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold, metaDataDB);
 
     printf("Calling fuse_main...\n");
