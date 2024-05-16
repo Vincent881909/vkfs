@@ -15,6 +15,16 @@ int hfs_utimens(const char *, const struct timespec tv[2]);
 
 int hfs_mkdir(const char *, mode_t mode);
 
+int hfs_open(const char *path, struct fuse_file_info *fi);
+
+int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
+
+int hfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
+
+int hfs_unlink(const char *path);
+
+int hfs_rmdir(const char *path);
+
 
 #endif
 

@@ -14,6 +14,11 @@
 struct fuse_operations hfs_oper = {
   .getattr = hfs_getattr,
   .mkdir = hfs_mkdir,
+  .unlink = hfs_unlink,
+  .rmdir = hfs_rmdir,
+  .open = hfs_open,
+  .read = hfs_read,
+  .write = hfs_write,
   .readdir = hfs_readdir,
   .init = hfs_init,
   .create = hfs_create,

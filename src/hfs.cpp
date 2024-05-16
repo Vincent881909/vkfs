@@ -63,7 +63,7 @@ int hfs_getattr(const char *path, struct stat *statbuf) {
         // Need to update metadata
         struct HFSFileMetaData metadata = hfs::db::getMetaDatafromKey(db, key);
         hfs::db::updateMetaData(db, key, filenameStr, metadata, *statbuf);
-        
+
     } else { // All other entries
 
         key.inode_number = hfs::inode::getParentInodeNumber(path);
@@ -259,7 +259,92 @@ void *hfs_init(struct fuse_conn_info *conn) {
     return hfsState;
 }
 
-int hfs_utimens(const char *, const struct timespec tv[2]) {
-    // TODO
+int hfs_utimens(const char *path, const struct timespec tv[2]) {
+    struct fuse_context* context = fuse_get_context();
+    rocksdb::DB* db = hfs::db::getDBPtr(context);
+
+    HFSInodeKey key = hfs::inode::getKeyfromPath(path);
+
+    if (!hfs::db::keyExists(key, db)) {
+        return -ENOENT; // File does not exist
+    }
+
+    struct HFSFileMetaData metadata = hfs::db::getMetaDatafromKey(db, key);
+    metadata.file_structure.st_atim = tv[0];
+    metadata.file_structure.st_mtim = tv[1];
+
+    hfs::db::updateMetaData(db, key, hfs::path::returnFilenameFromPath(path), metadata, metadata.file_structure);
+
     return 0;
 }
+
+int hfs_open(const char *path, struct fuse_file_info *fi){
+    struct fuse_context* context = fuse_get_context();
+    rocksdb::DB* db = hfs::db::getDBPtr(context);
+
+    HFSInodeKey key = hfs::inode::getKeyfromPath(path);
+
+    if (!hfs::db::keyExists(key, db)) {
+        return -ENOENT; // File does not exist
+    }
+
+    return 0;
+}
+
+int hfs_unlink(const char *path){
+
+    struct fuse_context* context = fuse_get_context();
+    rocksdb::DB* db = hfs::db::getDBPtr(context);
+
+    HFSInodeKey key = hfs::inode::getKeyfromPath(path);
+
+    if (!hfs::db::keyExists(key, db)) {
+        return -ENOENT; // File does not exist
+    }
+
+    rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), hfs::db::getKeySlice(key));
+    if (!status.ok()) {
+        return -EIO; // Error during deletion
+    }
+
+    return 0;
+
+}
+
+int hfs_rmdir(const char *path){
+
+    struct fuse_context* context = fuse_get_context();
+    rocksdb::DB* db = hfs::db::getDBPtr(context);
+
+    HFSInodeKey key = hfs::inode::getKeyfromPath(path);
+
+    if (!hfs::db::keyExists(key, db)) {
+        return -ENOENT; // Directory does not exist
+    }
+
+    rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), hfs::db::getKeySlice(key));
+    if (!status.ok()) {
+        return -EIO; // Error during deletion
+    }
+
+    std::string parentDirStr = hfs::path::returnParentDir(path);
+    const char* parentDir = parentDirStr.c_str();
+
+    // Update parent's metadata
+    HFSInodeKey parentDirKey = hfs::inode::getKeyfromPath(parentDir);
+    struct HFSFileMetaData parentMetaData = hfs::db::getMetaDatafromKey(db, parentDirKey);
+    parentMetaData.file_structure.st_nlink++; // Increment the link count for the parent directory
+    hfs::db::updateMetaData(db, parentDirKey, parentDirStr, parentMetaData, parentMetaData.file_structure);
+
+    return 0;
+
+}
+
+int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+    return 0;
+}
+
+int hfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+    return 0;
+}
+
