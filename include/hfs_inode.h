@@ -13,10 +13,9 @@ struct HFSInodeKey{
 };
 
 struct HFSFileMetaData{
-    uint64_t filename_len;
+    size_t filename_len;
     bool has_external_data;
-    struct stat file_structure;
-    
+    struct stat file_structure; 
 };
 
 struct HFSInodeValueSerialized{

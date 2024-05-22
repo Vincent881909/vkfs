@@ -23,16 +23,25 @@ all: $(BIN)/$(EXECUTABLE)
 run: $(BIN)/$(EXECUTABLE)
 	./$< $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
 
+run_debug: $(BIN)/$(EXECUTABLE)_debug
+	./$< $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
+
 $(BIN)/$(EXECUTABLE): $(OBJECTS) $(ROCKSDB_LIB)
 	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) $^ -o $@ $(LIBRARIES) $(COMPRESSION_LIB)
+
+$(BIN)/$(EXECUTABLE)_debug: $(OBJECTS:.o=_debug.o) $(ROCKSDB_LIB)
+	$(CXX) $(CXX_FLAGS) -DDEBUG -I$(INCLUDE) $^ -o $@ $(LIBRARIES) $(COMPRESSION_LIB)
 
 -include $(DEPENDENCIES)
 
 $(BIN)/%.o: $(SRC)/%.cpp
 	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) -MMD -MP -c $< -o $@
 
+$(BIN)/%_debug.o: $(SRC)/%.cpp
+	$(CXX) $(CXX_FLAGS) -DDEBUG -I$(INCLUDE) -MMD -MP -c $< -o $@
+
 clean:
-	-rm -f $(BIN)/*.o $(BIN)/$(EXECUTABLE) $(DEPENDENCIES) $(ROCKSDB_LIB)
+	-rm -f $(BIN)/*.o $(BIN)/*_debug.o $(BIN)/$(EXECUTABLE) $(BIN)/$(EXECUTABLE)_debug $(DEPENDENCIES) $(ROCKSDB_LIB)
 
 $(ROCKSDB_LIB):
 	cd $(ROCKSDB_DIR) && $(MAKE) static_lib

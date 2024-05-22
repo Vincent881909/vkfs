@@ -12,7 +12,10 @@
 #include <vector>
 
 int hfs_getattr(const char *path, struct stat *statbuf) {
-    printf("Get attribute called for %s\n\n", path);
+
+    #ifdef DEBUG
+        printf("getattr called with path: %s\n", path);
+    #endif
 
     struct HFSInodeKey key = hfs::inode::getKeyfromPath(path);
     struct fuse_context* context = fuse_get_context();
@@ -37,16 +40,19 @@ int hfs_getattr(const char *path, struct stat *statbuf) {
         // Need to update metadata
         struct HFSFileMetaData currentMetaData = hfs::db::getMetaDatafromKey(db, key);
         std::string rootDir(hfs::ROOT_INODE);
-        hfs::db::updateMetaData(db, key, rootDir, currentMetaData, *statbuf);
+        hfs::db::updateMetaData(db, key,*statbuf);
     }   
     else if (strcmp(hfs::path::returnParentDir(path).c_str(), "/") == 0) { // Parent directory is root
 
         key.inode_number = hfs::ROOT_INODE_ID; // Inode ID of parent directory (root)
         std::string filenameStr = hfs::path::returnFilenameFromPath(path);
         const char* filename = filenameStr.c_str();
-        key.inode_number_hashed = murmur64(path, strlen(filename), 123);
+        key.inode_number_hashed = generateHash(path, strlen(filename), 123);
 
         if (!hfs::db::keyExists(key, db)) {
+            #ifdef DEBUG
+                printf("Returning -ENONENT\n\n");
+            #endif
             return -ENOENT; // File does not exist
         }
 
@@ -62,16 +68,19 @@ int hfs_getattr(const char *path, struct stat *statbuf) {
 
         // Need to update metadata
         struct HFSFileMetaData metadata = hfs::db::getMetaDatafromKey(db, key);
-        hfs::db::updateMetaData(db, key, filenameStr, metadata, *statbuf);
+        hfs::db::updateMetaData(db, key,*statbuf);
 
     } else { // All other entries
 
         key.inode_number = hfs::inode::getParentInodeNumber(path);
         std::string filenameStr = hfs::path::returnFilenameFromPath(path);
         const char* filename = filenameStr.c_str();
-        key.inode_number_hashed = murmur64(path, strlen(filename), 123);
+        key.inode_number_hashed = generateHash(path, strlen(filename), 123);
 
         if (!hfs::db::keyExists(key, db)) {
+            #ifdef DEBUG
+                printf("Returning -ENONENT\n\n");
+            #endif
             return -ENOENT; // File does not exist
         }
 
@@ -87,13 +96,22 @@ int hfs_getattr(const char *path, struct stat *statbuf) {
 
         // Need to update metadata
         struct HFSFileMetaData metadata = hfs::db::getMetaDatafromKey(db, key);
-        hfs::db::updateMetaData(db, key, filenameStr, metadata, *statbuf);
+        hfs::db::updateMetaData(db, key,*statbuf);
     }
+
+    #ifdef DEBUG
+        printf("Returning 0\n\n");
+    #endif
 
     return 0;
 }
 
 int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
+
+    #ifdef DEBUG
+        printf("readdir called with path: %s\n", path);
+    #endif
+
     struct fuse_context* context = fuse_get_context();
     rocksdb::DB* db = hfs::db::getDBPtr(context);
 
@@ -119,8 +137,14 @@ int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
         std::string valueData;
         rocksdb::Status status = db->Get(rocksdb::ReadOptions(), key, &valueData);
 
+        #ifdef DEBUG
+            printf("\n\nentry found\n");
+        #endif
+
         if (!status.ok()) {
-            std::cerr << "Failed to retrieve the key: " << status.ToString() << std::endl;
+            #ifdef DEBUG
+                printf("Failed to retrieve key\n");
+            #endif  
         }
 
         HFSInodeValueSerialized inodeData;
@@ -129,26 +153,51 @@ int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
         HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
 
         const char* filename = valueData.c_str() + HFS_INODE_VALUE_SIZE;
+        
+        #ifdef DEBUG
+            printf("Filename: %s\n",filename);
+        #endif
 
         if (inodeValue->file_structure.st_ino == 0) { // Do not list root entry
             continue;
         }
 
+        
+
+        #ifdef DEBUG
+            hfs::debug::printStatStructure(inodeValue->file_structure);
+        #endif
+
         // Fill buf with metadata
         if (filler(buf, filename, &inodeValue->file_structure, 0) < 0) {
+        #ifdef DEBUG
+            printf("Returning -ENOMEM\n\n");
+        #endif  
             return -ENOMEM;
         }
     }
 
     if (!it->status().ok()) {
-        std::cerr << "Iterator error: " << it->status().ToString() << std::endl;
+        #ifdef DEBUG
+            printf("Iterator error\n");
+            printf("Returning -EIO\n\n");
+        #endif        
         return -EIO;
     }
+
+    #ifdef DEBUG
+        printf("Returning 0\n\n");
+    #endif
 
     return 0;
 }
 
 int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    #ifdef DEBUG
+        printf("create called with path: %s and mode %u\n",path,mode);
+    #endif
+
+
     struct fuse_context* context = fuse_get_context();
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(context->private_data);
     rocksdb::DB* db = hfs::db::getDBPtr(context);
@@ -163,29 +212,39 @@ int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     hfs::inode::setInodeKey(path, strlen(filename), key, parentInode);
 
     if (hfs::db::keyExists(key, db)) {
-        printf("File or directory with name: %s already exists\n", filename);
+        #ifdef DEBUG
+            printf("Returning -EEXIST\n\n");
+        #endif
         return -EEXIST;
     }
+
+    //Store parent inode number for subsequent read or write calls to avoid frequent  lookup
+    fi->fh = key.inode_number;
 
     struct stat statbuf;
     memset(&statbuf, 0, sizeof(struct stat));
     statbuf.st_ino = hfsState->getNextInodeNumber();
-    statbuf.st_mode = mode;
+    statbuf.st_mode = S_IFREG | mode;
     hfsState->incrementInodeNumber();
 
     HFSInodeValueSerialized value = hfs::inode::initInodeValue(statbuf, filenameStr, mode);
     rocksdb::Status status = db->Put(rocksdb::WriteOptions(), hfs::db::getKeySlice(key), hfs::db::getValueSlice(value));
 
-    if (!status.ok()) {
-        fprintf(stderr, "Failed to insert %s into metadata DB: %s\n", filename, status.ToString().c_str());
-    } else {
-        printf("Successfully inserted %s into the metadata DB\n", filename);
-    }
+    #ifdef DEBUG
+        if (!status.ok()) {
+            printf("Failed to insert %s into metadata DB: %s\n", filename, status.ToString().c_str());
+        }
+        printf("Returning 0\n\n");
+    #endif
 
     return 0;
 }
 
 int hfs_mkdir(const char *path, mode_t mode) {
+    #ifdef DEBUG
+        printf("mkdir called with path: %s and mode %u\n",path,mode);
+    #endif
+
     struct fuse_context* context = fuse_get_context();
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
     rocksdb::DB* db = hfs::db::getDBPtr(context);
@@ -200,7 +259,9 @@ int hfs_mkdir(const char *path, mode_t mode) {
     hfs::inode::setInodeKey(path, strlen(dirname), key, parentDirInode);
 
     if (hfs::db::keyExists(key, db)) {
-        printf("Directory with name: %s already exists\n", dirname);
+        #ifdef DEBUG
+            printf("Returning -EXISTS\n\n");
+        #endif
         return -EEXIST;
     }
 
@@ -213,23 +274,32 @@ int hfs_mkdir(const char *path, mode_t mode) {
     HFSInodeValueSerialized value = hfs::inode::initInodeValue(statbuf, dirnameStr, mode | S_IFDIR);
     rocksdb::Status status = db->Put(rocksdb::WriteOptions(), hfs::db::getKeySlice(key), hfs::db::getValueSlice(value));
 
-    if (!status.ok()) {
-        fprintf(stderr, "Failed to insert %s into metadata DB: %s\n", dirname, status.ToString().c_str());
-        return -EIO;
-    } else {
-        printf("Successfully inserted %s into the metadata DB\n", dirname);
-    }
+
+    #ifdef DEBUG
+        if (!status.ok()) {
+            printf("Failed to insert %s into metadata DB: %s\n", dirname, status.ToString().c_str());
+            printf("Returning -EIO\n\n");
+            return -EIO;
+        } 
+    #endif
 
     // Update parent's metadata
     HFSInodeKey parentDirKey = hfs::inode::getKeyfromPath(parentDir);
     struct HFSFileMetaData parentMetaData = hfs::db::getMetaDatafromKey(db, parentDirKey);
     parentMetaData.file_structure.st_nlink++; // Increment the link count for the parent directory
-    hfs::db::updateMetaData(db, parentDirKey, parentDirStr, parentMetaData, parentMetaData.file_structure);
+    hfs::db::updateMetaData(db, parentDirKey, parentMetaData.file_structure);
+    
+    #ifdef DEBUG
+        printf("Returning 0\n\n");
+    #endif
 
     return 0;
 }
 
 void *hfs_init(struct fuse_conn_info *conn) {
+    #ifdef DEBUG
+        printf("init called\n");
+    #endif
     struct fuse_context* context = fuse_get_context();
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(context->private_data);
     rocksdb::DB* db = hfs::db::getDBPtr(context);
@@ -249,63 +319,80 @@ void *hfs_init(struct fuse_conn_info *conn) {
         rocksdb::Slice dbValue = hfs::db::getValueSlice(value);
         rocksdb::Status status = db->Put(rocksdb::WriteOptions(), dbKey, dbValue);
 
-        if (!status.ok()) {
-            fprintf(stderr, "Failed to insert root inode into metadata DB: %s\n", status.ToString().c_str());
-        } else {
-            printf("Successfully inserted root node into the metadata DB\n");
-        }
+        #ifdef DEBUG
+            if (!status.ok()) {
+                printf("Failed to insert root inode into metadata DB: %s\n", status.ToString().c_str());
+            }
+        #endif
     }
+
+    //Need to free heap memory
+
+    #ifdef DEBUG
+        printf("Returning 0\n\n");
+    #endif
 
     return hfsState;
 }
 
 int hfs_utimens(const char *path, const struct timespec tv[2]) {
+
+    #ifdef DEBUG
+        printf("utimens called with path %s\n", path);
+    #endif
+
     struct fuse_context* context = fuse_get_context();
     rocksdb::DB* db = hfs::db::getDBPtr(context);
 
     HFSInodeKey key = hfs::inode::getKeyfromPath(path);
 
     if (!hfs::db::keyExists(key, db)) {
+        #ifdef DEBUG
+            printf("Returning -ENOENT\n\n");
+        #endif
         return -ENOENT; // File does not exist
     }
 
     struct HFSFileMetaData metadata = hfs::db::getMetaDatafromKey(db, key);
     metadata.file_structure.st_atim = tv[0];
     metadata.file_structure.st_mtim = tv[1];
+    hfs::db::updateMetaData(db, key, metadata.file_structure);
 
-    hfs::db::updateMetaData(db, key, hfs::path::returnFilenameFromPath(path), metadata, metadata.file_structure);
-
-    return 0;
-}
-
-int hfs_open(const char *path, struct fuse_file_info *fi){
-    struct fuse_context* context = fuse_get_context();
-    rocksdb::DB* db = hfs::db::getDBPtr(context);
-
-    HFSInodeKey key = hfs::inode::getKeyfromPath(path);
-
-    if (!hfs::db::keyExists(key, db)) {
-        return -ENOENT; // File does not exist
-    }
+    #ifdef DEBUG
+        printf("Returning 0\n\n");
+    #endif
 
     return 0;
 }
+
 
 int hfs_unlink(const char *path){
 
+    #ifdef DEBUG
+        printf("unlink called with path %s\n", path);
+    #endif
+
     struct fuse_context* context = fuse_get_context();
     rocksdb::DB* db = hfs::db::getDBPtr(context);
 
     HFSInodeKey key = hfs::inode::getKeyfromPath(path);
 
     if (!hfs::db::keyExists(key, db)) {
+        #ifdef DEBUG
+            printf("Returning -ENOENT\n\n");
+        #endif
         return -ENOENT; // File does not exist
     }
 
     rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), hfs::db::getKeySlice(key));
-    if (!status.ok()) {
-        return -EIO; // Error during deletion
-    }
+
+    #ifdef DEBUG
+        if (!status.ok()) {
+            printf("Error during deletion\n"); 
+        }
+
+        printf("Returning 0\n\n");
+    #endif
 
     return 0;
 
@@ -313,17 +400,28 @@ int hfs_unlink(const char *path){
 
 int hfs_rmdir(const char *path){
 
+
+    #ifdef DEBUG
+        printf("rmdir called with path %s\n",path);
+    #endif
+
     struct fuse_context* context = fuse_get_context();
     rocksdb::DB* db = hfs::db::getDBPtr(context);
 
     HFSInodeKey key = hfs::inode::getKeyfromPath(path);
 
     if (!hfs::db::keyExists(key, db)) {
+        #ifdef DEBUG
+            printf("Returning -ENOENT\n\n");
+        #endif
         return -ENOENT; // Directory does not exist
     }
 
     rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), hfs::db::getKeySlice(key));
     if (!status.ok()) {
+        #ifdef DEBUG
+            printf("Returning -EIO\n\n");
+        #endif
         return -EIO; // Error during deletion
     }
 
@@ -333,18 +431,240 @@ int hfs_rmdir(const char *path){
     // Update parent's metadata
     HFSInodeKey parentDirKey = hfs::inode::getKeyfromPath(parentDir);
     struct HFSFileMetaData parentMetaData = hfs::db::getMetaDatafromKey(db, parentDirKey);
-    parentMetaData.file_structure.st_nlink++; // Increment the link count for the parent directory
-    hfs::db::updateMetaData(db, parentDirKey, parentDirStr, parentMetaData, parentMetaData.file_structure);
+    parentMetaData.file_structure.st_nlink--; 
+    hfs::db::updateMetaData(db, parentDirKey, parentMetaData.file_structure);
+
+
+    #ifdef DEBUG
+        printf("Returning 0\n\n");
+    #endif
 
     return 0;
 
 }
 
 int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
-    return 0;
+
+    #ifdef DEBUG
+        printf("read called with path %s and size: %u and offset %ld\n", path,size,offset);
+    #endif
+
+    //Fetch file -> either fi or helper functions
+    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
+    HFSInodeKey key;
+
+    /*
+
+    if(fi->fh == 0){
+        uint64_t parentInode = hfs::inode::getParentInodeNumber(path);
+        key = hfs::inode::getKeyFromPath(path,parentInode);
+    }else{
+        key.inode_number = fi->fh;
+        std::string fileName = hfs::path::returnFilenameFromPath(path);
+        key.inode_number_hashed = generateHash(path,fileName.length(),123);
+    }
+    */
+
+    uint64_t parentInode = hfs::inode::getParentInodeNumber(path);
+    key = hfs::inode::getKeyFromPath(path,parentInode);
+
+    if(!hfs::db::keyExists(key,db)){
+        #ifdef DEBUG
+            printf("Returning -ENOENT\n\n");
+        #endif
+        return -ENOENT;
+    }
+
+    std::string data;
+    rocksdb::Status status = db->Get(rocksdb::ReadOptions(),hfs::db::getKeySlice(key),&data);
+
+    #ifdef DEBUG
+        if(!status.ok()){
+            printf("Error retrieving value. Error: %s\n", status.ToString());
+        }
+    #endif
+
+    HFSInodeValueSerialized inodeData;
+    inodeData.data = &data[0]; 
+    inodeData.size = data.size();
+    HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
+
+    #ifdef DEBUG
+        // printf("Filename length: %zu\n",inodeValue->filename_len);
+        // char* a = new char[inodeValue->filename_len];
+        // memcpy(a,inodeData.data + HFS_INODE_VALUE_SIZE,inodeValue->filename_len);
+        // printf("Filename: %s\n",a);
+        // size_t finalSize = inodeData.size - HFS_INODE_VALUE_SIZE - inodeValue->filename_len - 1;
+        // char* finalData = new char[finalSize];
+        // memcpy(finalData,inodeData.data + HFS_INODE_VALUE_SIZE + inodeValue->filename_len + 1,finalSize);
+        // finalData[finalSize] = '\0';
+        
+        // printf("Final data: %s\n",finalData);
+        // printf("Final data size %zu\n",finalSize);
+    #endif
+
+    if(size > inodeValue->file_structure.st_size){size = inodeValue->file_structure.st_size;}
+    char* fileptr = inodeData.data + HFS_INODE_VALUE_SIZE + inodeValue->filename_len + 1;
+
+    #ifdef DEBUG
+        printf("Data to be read:\n");
+        fwrite(fileptr, 1, size, stdout);
+        printf("\n");
+    #endif
+    memcpy(buf,fileptr,size);
+
+
+    //Check if fi.fh is = 0 -> not init else it holds the parentinode number
+
+    #ifdef DEBUG
+        printf("Returning (size): %ld\n\n",size);
+    #endif
+
+    return inodeValue->file_structure.st_size;
 }
 
 int hfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+
+    printf("Write is called with path %s and size: %ld\n", path,size);
+
+    //Fetch file -> either fi or helper functions
+    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
+    HFSInodeKey key;
+
+
+    // if(fi->fh == 0){
+    //     printf("Fi exists with value: %d\n",fi->fh);
+    //     uint64_t parentInode = hfs::inode::getParentInodeNumber(path);
+    //     key = hfs::inode::getKeyFromPath(path,parentInode);
+    // }else{
+    //     printf("Fi not init\n");
+    //     key.inode_number = fi->fh;
+    //     std::string fileName = hfs::path::returnFilenameFromPath(path);
+    //     key.inode_number_hashed = generateHash(path,fileName.length(),123);
+    // }
+
+    uint64_t parentInode = hfs::inode::getParentInodeNumber(path);
+    key = hfs::inode::getKeyFromPath(path,parentInode);
+
+    #ifdef DEBUG
+        printf("Parent Inode: %llu\n",    key.inode_number);
+    #endif
+
+    if(!hfs::db::keyExists(key,db)){
+        #ifdef DEBUG
+            printf("Returning -ENOENT\n\n");
+        #endif
+        return -ENOENT;
+    }
+
+    std::string data;
+    rocksdb::Status status = db->Get(rocksdb::ReadOptions(),hfs::db::getKeySlice(key),&data);
+
+
+    if(!status.ok()){
+        printf("Error retrieving value. Error: %s\n", status.ToString());
+    }
+
+    HFSInodeValueSerialized inodeData;
+    inodeData.data = &data[0]; 
+    inodeData.size = data.length();
+    HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data);
+    inodeValue->file_structure.st_size = size;
+
+    char* filename = new char[inodeValue->filename_len + 1];
+    memcpy(filename,inodeData.data + HFS_INODE_VALUE_SIZE,inodeValue->filename_len);
+    filename[inodeValue->filename_len] = '\0';
+
+    
+    #ifdef DEBUG
+        std::string fileStr(filename);
+        printf("Filename: %s\n",fileStr.c_str());
+    #endif
+
+    //For now let's assume file size is 0 and 0 < size < T bytes will be written
+
+    HFSInodeValueSerialized newInodeData;
+    size_t memoryNeeded = HFS_INODE_VALUE_SIZE + inodeValue->filename_len + 1 + size ;
+    char* newData = new char[memoryNeeded];
+
+    memcpy(newData,inodeData.data,HFS_INODE_VALUE_SIZE + inodeValue->filename_len + 1); //Copy metadata
+
+    char* dataBuf = newData + HFS_INODE_VALUE_SIZE + inodeValue->filename_len + 1;
+    memcpy(dataBuf,buf,size);
+
+    newInodeData.data = newData;
+    newInodeData.size = memoryNeeded;
+
+    rocksdb::Slice valueSlice = hfs::db::getValueSlice(newInodeData);
+    rocksdb::Slice keySlice = hfs::db::getKeySlice(key);
+    rocksdb::Status s = db->Put(rocksdb::WriteOptions(),keySlice,valueSlice);
+
+    char* test = new char[size + 1]; // Allocate memory for test buffer
+    memcpy(test, newData + HFS_INODE_VALUE_SIZE + inodeValue->filename_len + 1, size);
+    test[size] = '\0'; // Null-terminate the test string
+    printf("Test: %s\n", test);
+    delete[] test; 
+
+    #ifdef DEBUG
+        if(!s.ok()){
+            printf("Error inserting updated value with error: %s\n",s.ToString().c_str());
+        }
+
+        printf("Returning (size written): %zu\n\n",size);
+    #endif
+
+    return size;
+}
+
+
+int hfs_open(const char *path, struct fuse_file_info *fi){
+    #ifdef DEBUG
+        printf("open called with path %s\n",path);
+        printf("Returning 0\n\n");
+    #endif
+    return 0;
+}
+
+int hfs_truncate(const char *path, off_t len){
+    #ifdef DEBUG
+        printf("truncate called with path %s\n",path);
+        printf("Returning 0\n\n");
+    #endif
+    return 0;
+}
+
+int hfs_flush(const char *path, struct fuse_file_info *){
+    #ifdef DEBUG
+        printf("flush called with path %s\n",path);
+        printf("Returning 0\n\n");
+    #endif
+    return 0;
+}
+
+int hfs_fallocate(const char *path, int mode, off_t offset, off_t len, struct fuse_file_info *fi){
+    #ifdef DEBUG
+        printf("fallocate called with path %s\n",path);
+        printf("Returning 0\n\n");
+    #endif
+    return 0;
+}
+
+int hfs_release(const char *path, struct fuse_file_info *){
+    #ifdef DEBUG
+        printf("release called with path %s\n",path);
+        printf("Returning 0\n\n");
+    #endif
+    return 0;
+}
+
+
+int hfs_fsync(const char *path, int, struct fuse_file_info *){
+    #ifdef DEBUG
+        printf("fsync called with path %s\n",path);
+        printf("Returning 0\n\n");
+    #endif
     return 0;
 }
 

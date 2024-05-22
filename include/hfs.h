@@ -25,6 +25,15 @@ int hfs_unlink(const char *path);
 
 int hfs_rmdir(const char *path);
 
+int hfs_truncate(const char *path, off_t len);
+
+int hfs_flush(const char *path, struct fuse_file_info *);
+
+int hfs_fallocate(const char *path, int, off_t, off_t, struct fuse_file_info *);
+
+int hfs_release(const char *path, struct fuse_file_info *);
+
+int hfs_fsync(const char *path, int, struct fuse_file_info *);
 
 #endif
 

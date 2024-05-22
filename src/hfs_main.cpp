@@ -16,13 +16,18 @@ struct fuse_operations hfs_oper = {
   .mkdir = hfs_mkdir,
   .unlink = hfs_unlink,
   .rmdir = hfs_rmdir,
+  .truncate = hfs_truncate,
   .open = hfs_open,
   .read = hfs_read,
   .write = hfs_write,
+  .flush = hfs_flush,
+  .release = hfs_release,
+  .fsync = hfs_fsync,
   .readdir = hfs_readdir,
   .init = hfs_init,
   .create = hfs_create,
-  .utimens = hfs_utimens
+  .utimens = hfs_utimens,
+  .fallocate = hfs_fallocate,
 };
 
 int main(int argc, char *argv[]){
@@ -38,19 +43,28 @@ int main(int argc, char *argv[]){
     strcpy(fuse_mount_dir, mountdir.c_str());
     fuse_argv[fuse_argc++] = fuse_mount_dir;
     fuse_argv[fuse_argc++] = "-f"; //Run Fuse in the Foreground
-    fuse_argv[fuse_argc++] = "-d"; //Verbose debug output
+    //fuse_argv[fuse_argc++] = "-d"; //Verbose debug output
     fuse_argv[fuse_argc++] = "-s"; //Single threaded mode
+    //fuse_argv[fuse_argc++] = "default_permissions"; //Single threaded mode
     fuse_argv[fuse_argc++] = "-o"; // Allow access to other users
     fuse_argv[fuse_argc++] = "allow_other"; // Allow access to other users
     int fuse_state;
     
-    u_int dataThreshold = 4096;
+    //u_int dataThreshold = 4096;
+    u_int dataThreshold = 20000;
     rocksdb::DB* metaDataDB = hfs::db::createMetaDataDB(metadir);
     HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold, metaDataDB);
 
-    printf("Calling fuse_main...\n");
+
+    #ifdef DEBUG
+      printf("Calling fuse_main...\n");
+    #endif
+
     fuse_state = fuse_main(fuse_argc, fuse_argv, &hfs_oper, &hfsState);
-    printf("fuse_main has exited with code: %d\n", fuse_state);
+
+    #ifdef DEBUG
+      printf("fuse_main has exited with code: %d\n", fuse_state);
+    #endif
 
     return fuse_state;
 }

@@ -33,8 +33,10 @@ namespace hfs {
         void printValueForKey(rocksdb::DB* db, const HFSInodeKey& key);
         struct stat returnStatFromKey(rocksdb::DB* db, const HFSInodeKey key);
         struct HFSFileMetaData getMetaDatafromKey(rocksdb::DB* db, const HFSInodeKey key);
-        void updateMetaData(rocksdb::DB* db, struct HFSInodeKey key, std::string filename, struct HFSFileMetaData inode_value, struct stat new_stat);
+        void updateMetaData(rocksdb::DB* db, struct HFSInodeKey key, struct stat new_stat);
         std::string getFileNamefromKey(rocksdb::DB* db, struct HFSInodeKey key);
+        HFSInodeValueSerialized getSerializedData(rocksdb::DB* db, struct HFSInodeKey key);
+        
     }
 
     namespace path {
@@ -43,6 +45,7 @@ namespace hfs {
         bool pathExists(const char* path, const char* parentPath);
         std::string returnFilenameFromPath(const std::string& path);
         std::string getParentPath(const std::string& path);
+        size_t getNewFileSize(size_t currentSize,size_t toWrite,size_t offset);
     }
 
     namespace debug {

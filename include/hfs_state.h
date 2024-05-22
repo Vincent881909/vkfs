@@ -36,6 +36,7 @@ public:
     void setIDFlag();
     int getNextInodeNumber();
     void incrementInodeNumber();
+    u_int getDataThreshold();
 };
 
 #endif

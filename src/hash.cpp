@@ -3,49 +3,31 @@ Adpated from original source code of TableFS
 */
 
 #include <iostream>
+#include <cstring>
 
-#define BIG_CONSTANT(x) (x##LLU)
+uint64_t fnv1a(const char* data, size_t len) {
+    const uint64_t fnv_prime = 1099511628211ULL;
+    const uint64_t offset_basis = 14695981039346656037ULL;
 
-uint64_t murmur64(const char *path, int len, uint64_t seed )
-{
-  const uint64_t m = BIG_CONSTANT(0xc6a4a7935bd1e995);
-  const int r = 47;
+    uint64_t hash = offset_basis;
+    for (size_t i = 0; i < len; ++i) {
+        hash ^= static_cast<uint64_t>(data[i]);
+        hash *= fnv_prime;
+    }
+    return hash;
+}
 
-  uint64_t h = seed ^ (len * m);
 
-  const uint64_t * data = (const uint64_t *)path;
-  const uint64_t * end = data + (len/8);
+// Function to generate hash for path and filename
+uint64_t generateHash(const char* path, int filenameLength, uint64_t seed) {
+    // Calculate hash for path
+    uint64_t pathHash = fnv1a(path, strlen(path));
 
-  while(data != end)
-  {
-    uint64_t k = *data++;
+    // Combine path hash with filename length
+    uint64_t combinedHash = pathHash ^ (filenameLength * seed);
 
-    k *= m; 
-    k ^= k >> r; 
-    k *= m; 
-    
-    h ^= k;
-    h *= m; 
-  }
+    return combinedHash;
+}
 
-  const unsigned char * data2 = (const unsigned char*)data;
 
-  switch(len & 7)
-  {
-  case 7: h ^= uint64_t(data2[6]) << 48;
-  case 6: h ^= uint64_t(data2[5]) << 40;
-  case 5: h ^= uint64_t(data2[4]) << 32;
-  case 4: h ^= uint64_t(data2[3]) << 24;
-  case 3: h ^= uint64_t(data2[2]) << 16;
-  case 2: h ^= uint64_t(data2[1]) << 8;
-  case 1: h ^= uint64_t(data2[0]);
-          h *= m;
-  };
- 
-  h ^= h >> r;
-  h *= m;
-  h ^= h >> r;
-
-  return h;
-} 
 
