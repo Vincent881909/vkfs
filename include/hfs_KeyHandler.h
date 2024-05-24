@@ -13,7 +13,7 @@
 class KeyHandler {
 private:
     uint32_t currentKey;
-    std::unordered_map<const char*, uint64_t> map;
+    std::unordered_map<std::string, uint64_t> map;
     std::queue<uint64_t> queue;
 
 public:
@@ -24,6 +24,9 @@ public:
     void recycleKey(uint32_t key);
     uint32_t getKeyFromPath(const char* path);
     bool entryExists(const char* path);
+    void eraseEntry(const char* path);
+    int handleEntries(const char* path, uint32_t &key);
+    int handleErase(const char* path);
 };
 
 #endif 

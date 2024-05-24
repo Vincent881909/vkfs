@@ -17,7 +17,7 @@ int KeyHandler::getNextKey() {
 }
 
 void KeyHandler::makeNewEntry(uint32_t key, const char* path) {
-    map[path] = key;
+    map[std::string(path)] = key;
 }
 
 void KeyHandler::recycleKey(uint32_t key) {
@@ -25,9 +25,36 @@ void KeyHandler::recycleKey(uint32_t key) {
 }
 
 uint32_t KeyHandler::getKeyFromPath(const char* path) {
-    return map[path];
+    return map[std::string(path)];
 }
 
 bool KeyHandler::entryExists(const char* path) {
-    return map.find(path) != map.end();
+    return map.find(std::string(path)) != map.end();
+}
+
+void KeyHandler::eraseEntry(const char* path){
+      map.erase(std::string(path));
+    }
+
+int KeyHandler::handleEntries(const char* path, uint32_t &key){
+    if(entryExists(path)){
+        return -1;
+    }
+
+    key = getNextKey();
+
+    makeNewEntry(key, path);
+
+    return 0;
+}
+
+int KeyHandler::handleErase(const char* path){
+    if(!entryExists(path)){
+    return -1;
+    }
+
+    uint32_t key = getKeyFromPath(path);
+    recycleKey(key);
+    eraseEntry(path);
+    return 0;
 }
