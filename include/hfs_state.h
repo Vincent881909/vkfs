@@ -4,6 +4,7 @@
 #include <string>
 #include <iostream>
 #include "rocksdb/db.h"
+#include "../include/hfs_KeyHandler.h"
 
 class HFS_FileSystemState {
 private:
@@ -11,21 +12,21 @@ private:
     std::string metadir;
     std::string datadir;
     u_int dataThreshold;
-    int maxInodeNum;
+    int maxInodeNum = 0;
     rocksdb::DB* metaDataDB;
-    bool rootInitialized;
-    bool idsInitialized;
+    bool rootInitialized = false;
+    bool idsInitialized = false;
+    KeyHandler* handler = nullptr;
 
 public:
     // Constructor
-    HFS_FileSystemState(const std::string& mntdir,
-                        const std::string& metadir,
-                        const std::string& datadir,
+    HFS_FileSystemState(std::string mntdir,
+                        std::string metadir,
+                        std::string datadir,
                         u_int dataThreshold,
                         rocksdb::DB* metaDataDB,
-                        int maxInodeNum = 0,
-                        bool rootInitalized = false,
-                        bool idsInitialized = false);
+                        KeyHandler* handler = nullptr);
+
 
     // Member functions
     void printState() const;
@@ -37,6 +38,8 @@ public:
     int getNextInodeNumber();
     void incrementInodeNumber();
     u_int getDataThreshold();
+    void setKeyHandler(KeyHandler* newHandler);
+    KeyHandler* getKeyHandler() const;
 };
 
 #endif

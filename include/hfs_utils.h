@@ -2,6 +2,7 @@
 #define HFS_UTILS_H
 
 #include "hfs_inode.h"
+#include "hfs_KeyHandler.h"
 #include <fuse.h>
 #include <string>
 #include <iostream>
@@ -22,6 +23,8 @@ namespace hfs {
         HFSInodeKey getKeyFromPath(const char* path, uint64_t parent_inode);
         int getParentInodeNumber(const char* path);
         uint64_t getInodeFromPath(const char* path, rocksdb::DB* db, std::string filename);
+        KeyHandler* getKeyHandler(struct fuse_context* context);
+
     }
 
     namespace db {

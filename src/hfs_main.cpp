@@ -3,6 +3,7 @@
 #include "../include/hfs.h"
 #include "../include/hfs_state.h"
 #include "../include/hfs_utils.h"
+#include "../include/hfs_KeyHandler.h"
 #include <iostream>
 #include <fuse.h>
 #include <assert.h>
@@ -50,10 +51,10 @@ int main(int argc, char *argv[]){
     fuse_argv[fuse_argc++] = "allow_other"; // Allow access to other users
     int fuse_state;
     
-    //u_int dataThreshold = 4096;
-    u_int dataThreshold = 20000;
+    u_int dataThreshold = 4096;
     rocksdb::DB* metaDataDB = hfs::db::createMetaDataDB(metadir);
-    HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold, metaDataDB);
+    KeyHandler newHandler;
+    HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold, metaDataDB,&newHandler);
 
 
     #ifdef DEBUG

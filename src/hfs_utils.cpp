@@ -64,6 +64,12 @@ void printValueForKey(rocksdb::DB* db, const HFSInodeKey& key) {
 
 namespace inode {
 
+KeyHandler* getKeyHandler(struct fuse_context* context){
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(context->private_data);
+    return hfsState->getKeyHandler();
+
+}
+
 HFSInodeKey getKeyfromPath(const char* path) {
     struct HFSInodeKey key;
     key.inode_number = getParentInodeNumber(path);

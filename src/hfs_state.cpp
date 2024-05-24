@@ -1,17 +1,15 @@
-#include "hfs_state.h"
+#include "../include/hfs_state.h"
 
 // Constructor definition
-HFS_FileSystemState::HFS_FileSystemState(const std::string& mntdir,
-                                         const std::string& metadir,
-                                         const std::string& datadir,
+HFS_FileSystemState::HFS_FileSystemState(std::string mntdir,
+                                         std::string metadir,
+                                         std::string datadir,
                                          u_int dataThreshold,
                                          rocksdb::DB* metaDataDB,
-                                         int maxInodeNum, 
-                                         bool rootInitialzed,
-                                         bool idsInitialized)
-    : mntdir(mntdir), metadir(metadir), datadir(datadir),
-      dataThreshold(dataThreshold), metaDataDB(metaDataDB),
-      maxInodeNum(maxInodeNum), rootInitialized(rootInitialized), idsInitialized(idsInitialized) {}
+                                         KeyHandler* handler)
+    : mntdir(std::move(mntdir)), metadir(std::move(metadir)), datadir(std::move(datadir)),
+      dataThreshold(dataThreshold), metaDataDB(metaDataDB), handler(handler) {}
+
 
 // Definition of printState function
 void HFS_FileSystemState::printState() const {
@@ -50,6 +48,18 @@ int HFS_FileSystemState::getNextInodeNumber(){
 
 void HFS_FileSystemState::incrementInodeNumber(){
     maxInodeNum++;
+}
+
+u_int HFS_FileSystemState::getDataThreshold(){
+    return dataThreshold;
+}
+
+void HFS_FileSystemState::setKeyHandler(KeyHandler* newHandler) {
+    handler = newHandler;
+}
+
+KeyHandler* HFS_FileSystemState::getKeyHandler() const {
+    return handler;
 }
 
 
