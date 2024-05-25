@@ -10,22 +10,24 @@
 #define MIN_KEY 0
 #define MAX_KEY UINT32_MAX
 
-class KeyHandler {
+typedef uint32_t HFS_KEY;
+
+class HFS_KeyHandler {
 private:
-    uint32_t currentKey;
+    HFS_KEY currentKey;
     std::unordered_map<std::string, uint64_t> map;
     std::queue<uint64_t> queue;
 
 public:
-    KeyHandler();
+    HFS_KeyHandler();
 
     int getNextKey();
-    void makeNewEntry(uint32_t key, const char* path);
-    void recycleKey(uint32_t key);
-    uint32_t getKeyFromPath(const char* path);
+    void makeNewEntry(HFS_KEY key, const char* path);
+    void recycleKey(HFS_KEY key);
+    int getKeyFromPath(const char* path,HFS_KEY &key);
     bool entryExists(const char* path);
     void eraseEntry(const char* path);
-    int handleEntries(const char* path, uint32_t &key);
+    int handleEntries(const char* path, HFS_KEY &key);
     int handleErase(const char* path);
 };
 

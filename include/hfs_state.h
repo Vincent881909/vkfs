@@ -16,7 +16,7 @@ private:
     rocksdb::DB* metaDataDB;
     bool rootInitialized = false;
     bool idsInitialized = false;
-    KeyHandler* handler = nullptr;
+    HFS_KeyHandler* handler = nullptr;
 
 public:
     // Constructor
@@ -25,7 +25,7 @@ public:
                         std::string datadir,
                         u_int dataThreshold,
                         rocksdb::DB* metaDataDB,
-                        KeyHandler* handler = nullptr);
+                        HFS_KeyHandler* handler = nullptr);
 
 
     // Member functions
@@ -38,8 +38,8 @@ public:
     int getNextInodeNumber();
     void incrementInodeNumber();
     u_int getDataThreshold();
-    void setKeyHandler(KeyHandler* newHandler);
-    KeyHandler* getKeyHandler() const;
+    void setKeyHandler(HFS_KeyHandler* newHandler);
+    HFS_KeyHandler* getKeyHandler() const;
 };
 
 #endif

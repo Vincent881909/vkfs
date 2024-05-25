@@ -6,7 +6,7 @@ HFS_FileSystemState::HFS_FileSystemState(std::string mntdir,
                                          std::string datadir,
                                          u_int dataThreshold,
                                          rocksdb::DB* metaDataDB,
-                                         KeyHandler* handler)
+                                         HFS_KeyHandler* handler)
     : mntdir(std::move(mntdir)), metadir(std::move(metadir)), datadir(std::move(datadir)),
       dataThreshold(dataThreshold), metaDataDB(metaDataDB), handler(handler) {}
 
@@ -54,11 +54,11 @@ u_int HFS_FileSystemState::getDataThreshold(){
     return dataThreshold;
 }
 
-void HFS_FileSystemState::setKeyHandler(KeyHandler* newHandler) {
+void HFS_FileSystemState::setKeyHandler(HFS_KeyHandler* newHandler) {
     handler = newHandler;
 }
 
-KeyHandler* HFS_FileSystemState::getKeyHandler() const {
+HFS_KeyHandler* HFS_FileSystemState::getKeyHandler() const {
     return handler;
 }
 

@@ -6,55 +6,45 @@
 #include <fuse.h>
 #include <string>
 #include <iostream>
+#include <vector>
 #include "rocksdb/db.h"
 #include <rocksdb/slice.h>
 #include <unistd.h>
 
 namespace hfs {
-    static const char* ROOT_INODE = "/";
-    static const uint64_t ROOT_INODE_ID = 0;
+    static const char* ROOT_PATH = "/";
+    static const HFS_KEY ROOT_KEY = 0;
 
     namespace inode {
-        void setInodeKey(const char* path, int len, struct HFSInodeKey &inode, uint64_t maxInoderNumber);
-        HFSInodeValueSerialized initInodeValue(struct stat fileStructure, std::string filename, mode_t mode);
+        HFSInodeValueSerialized initDirHeader(struct stat fileStructure, std::string filename,mode_t mode);
+        HFSInodeValueSerialized initFileHeader(struct stat fileStructure, std::string filename, mode_t mode);
         void initStat(struct stat &statbuf, mode_t mode);
-        HFSInodeKey getKeyfromPath(const char* path);
-        struct stat getFileStat(rocksdb::DB* metaDataDB, HFSInodeKey key);
-        HFSInodeKey getKeyFromPath(const char* path, uint64_t parent_inode);
+        struct stat getFileStat(rocksdb::DB* metaDataDB, HFS_KEY key);
         int getParentInodeNumber(const char* path);
         uint64_t getInodeFromPath(const char* path, rocksdb::DB* db, std::string filename);
-        KeyHandler* getKeyHandler(struct fuse_context* context);
+        HFS_KeyHandler* getKeyHandler(struct fuse_context* context);
 
     }
 
     namespace db {
         rocksdb::DB* createMetaDataDB(std::string metadir);
         rocksdb::DB* getDBPtr(struct fuse_context* context);
-        rocksdb::Slice getKeySlice(const HFSInodeKey& key);
+        rocksdb::Slice getKeySlice(HFS_KEY key);
         rocksdb::Slice getValueSlice(const HFSInodeValueSerialized value);
-        bool keyExists(HFSInodeKey key, rocksdb::DB* db);
-        void printValueForKey(rocksdb::DB* db, const HFSInodeKey& key);
-        struct stat returnStatFromKey(rocksdb::DB* db, const HFSInodeKey key);
-        struct HFSFileMetaData getMetaDatafromKey(rocksdb::DB* db, const HFSInodeKey key);
-        void updateMetaData(rocksdb::DB* db, struct HFSInodeKey key, struct stat new_stat);
-        std::string getFileNamefromKey(rocksdb::DB* db, struct HFSInodeKey key);
-        HFSInodeValueSerialized getSerializedData(rocksdb::DB* db, struct HFSInodeKey key);
+        void* getMetaDatafromKey(rocksdb::DB* db, HFS_KEY key);
+        void updateMetaData(rocksdb::DB* db, HFS_KEY key, struct stat new_stat);
+        void incrementParentDirLink(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key);
+        std::string getFileNamefromKey(rocksdb::DB* db, HFS_KEY key);
+        HFSInodeValueSerialized getSerializedData(rocksdb::DB* db, HFS_KEY key);
+        std::vector<HFS_KEY> getDirEntries(rocksdb::DB* db,HFS_KEY key);
         
     }
 
     namespace path {
         std::string getCurrentPath();
         std::string returnParentDir(const std::string& path);
-        bool pathExists(const char* path, const char* parentPath);
         std::string returnFilenameFromPath(const std::string& path);
         std::string getParentPath(const std::string& path);
-        size_t getNewFileSize(size_t currentSize,size_t toWrite,size_t offset);
-    }
-
-    namespace debug {
-        void printInodeValue(HFSFileMetaData &inodeValue);
-        void printStatStructure(const struct stat& statbuf);
-        void printMetaData(rocksdb::DB* db, const HFSInodeKey key);
     }
 }
 

@@ -7,10 +7,7 @@
 #include <cstddef> 
 #include <string>
 
-struct HFSInodeKey{
-    uint64_t inode_number;
-    uint64_t inode_number_hashed;
-};
+
 
 struct HFSFileMetaData{
     size_t filename_len;
@@ -18,12 +15,22 @@ struct HFSFileMetaData{
     struct stat file_structure; 
 };
 
+struct HFSDirMetaData{
+    size_t filename_len;
+    struct stat file_structure;
+};
+
 struct HFSInodeValueSerialized{
-    uint64_t size;
+    uint16_t size;
     char* data;
 };
 
-static const size_t HFS_INODE_VALUE_SIZE = sizeof(HFSFileMetaData);
+static const size_t HFS_FILE_HEADER_SIZE = sizeof(HFSFileMetaData);
+static const size_t HFS_DIR_HEADER_SIZE = sizeof(HFSDirMetaData);
+static const uint8_t HFS_FILE_FLAG = 0;
+static const uint8_t HFS_DIR_FLAG = 1;
+static const size_t HFS_FLAG_SIZE = sizeof(uint8_t);
+
 
 
 #endif
