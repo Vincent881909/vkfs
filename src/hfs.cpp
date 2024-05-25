@@ -287,6 +287,7 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     struct fuse_context* context = fuse_get_context();
     rocksdb::DB* db = hfs::db::getDBPtr(context);
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(context);
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
     HFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
@@ -297,12 +298,18 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     }
     
     std::string data;
-    rocksdb::Status status = db->Get(rocksdb::ReadOptions(),std::to_string(key),&data);
+    if (hfs::db::getValue(db, key, data) < 0) {
+        return -ENOENT;
+    }
 
     HFSInodeValueSerialized inodeData;
     inodeData.data = &data[0]; 
     inodeData.size = data.size();
     HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data + HFS_FLAG_SIZE);
+
+    if(inodeValue->has_external_data){
+        return hfs::path::readFromLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
+    }
 
     //Need to 
     if(size > inodeValue->file_structure.st_size){
@@ -329,53 +336,35 @@ int hfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
     //Fetch file -> either fi or helper functions
     rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
     HFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
             printf("Returning -ENONENT\n\n");
         #endif
-    return -ENOENT; // Directory does not exist
+        return -ENOENT; // Directory does not exist
     }
-    
+
+    if(hfsState->getDataThreshold() < size){
+        return hfs::path::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir(),db);
+    }
+
     std::string data;
-    rocksdb::Status status = db->Get(rocksdb::ReadOptions(),std::to_string(key),&data);
+    if (hfs::db::getValue(db, key, data) < 0) {
+        return -ENOENT;
+    }
 
     HFSInodeValueSerialized inodeData;
-    inodeData.data = &data[0]; 
+    inodeData.data = &data[0];
     inodeData.size = data.length();
 
-    HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data + HFS_FLAG_SIZE);
-    inodeValue->file_structure.st_size = size;
-    //For now let's assume file size is 0 and 0 < size < T bytes will be written
+    char* newData = nullptr;
+    hfs::inode::prepareWrite(inodeData, buf, size, newData);
+    hfs::db::rocksDBInsert(db,key,inodeData);
 
-    if(inodeValue->file_structure.st_size == 0 && !size){ //Nothing do be done
-        return 0;
-    }
-
-    size_t memoryNeeded = HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1 + size ;
-    char* newData = new char[memoryNeeded];
-
-    memcpy(newData,inodeData.data,memoryNeeded - size); //Copy metadata
-    char* dataBuf = newData + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1;
-    memcpy(dataBuf,buf,size);
-
-    inodeData.data = newData;
-    inodeData.size = memoryNeeded;
-
-    rocksdb::Slice valueSlice = hfs::db::getValueSlice(inodeData);
-    rocksdb::Status s = db->Put(rocksdb::WriteOptions(),std::to_string(key),valueSlice);
     delete[] newData;
-
-
-    #ifdef DEBUG
-        if(!s.ok()){
-            printf("Error inserting updated value with error: %s\n",s.ToString().c_str());
-        }
-
-        printf("Returning (size written): %zu\n\n",size);
-    #endif
-
+    
     return size;
 }
 

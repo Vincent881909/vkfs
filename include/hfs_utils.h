@@ -23,7 +23,9 @@ namespace hfs {
         int getParentInodeNumber(const char* path);
         uint64_t getInodeFromPath(const char* path, rocksdb::DB* db, std::string filename);
         HFS_KeyHandler* getKeyHandler(struct fuse_context* context);
-
+        int writeToKeyValue(rocksdb::DB* metaDataDB, HFS_KEY key,size_t size,const char* sourceBuf);
+        void prepareWrite(HFSInodeValueSerialized& inodeData, const char* buf, size_t size, char*& newData);
+        void setBlobAndSize(rocksdb::DB* metaDataDB, HFS_KEY key,size_t writtenBytes);
     }
 
     namespace db {
@@ -36,11 +38,10 @@ namespace hfs {
         void incrementParentDirLink(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key);
         void deleteEntryAtParent(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key);
         std::string getFileNamefromKey(rocksdb::DB* db, HFS_KEY key);
-        HFSInodeValueSerialized getSerializedData(rocksdb::DB* db, HFS_KEY key);
+        void getSerializedData(rocksdb::DB* db, HFS_KEY key,HFSInodeValueSerialized& KeyValue);
         std::vector<HFS_KEY> getDirEntries(rocksdb::DB* db,HFS_KEY key);
-        void getReadBuffer(rocksdb::DB* db, HFS_KEY key, char*& buf, size_t size, size_t& bytesRead);
-        void getWriteBuffer(rocksdb::DB* db, HFS_KEY key, char*& buf, size_t size, HFSInodeValueSerialized& inodeData);
-        
+        int rocksDBInsert(rocksdb::DB* db,HFS_KEY key,HFSInodeValueSerialized value);
+        int getValue(rocksdb::DB* db, HFS_KEY key, std::string& data);
     }
 
     namespace path {
@@ -48,7 +49,10 @@ namespace hfs {
         std::string returnParentDir(const std::string& path);
         std::string returnFilenameFromPath(const std::string& path);
         std::string getParentPath(const std::string& path);
+        int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offset,HFS_KEY key,std::string datadir,rocksdb::DB* db);
+        int readFromLocalFile(const char *path, const char *buf, size_t size, off_t offset,HFS_KEY key,std::string datadir);
     }
+
 }
 
 #endif

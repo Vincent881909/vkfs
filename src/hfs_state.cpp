@@ -62,5 +62,9 @@ HFS_KeyHandler* HFS_FileSystemState::getKeyHandler() const {
     return handler;
 }
 
+std::string HFS_FileSystemState::getDataDir(){
+    return datadir;
+}
+
 
 

@@ -51,11 +51,10 @@ int main(int argc, char *argv[]){
     fuse_argv[fuse_argc++] = "allow_other"; // Allow access to other users
     int fuse_state;
     
-    u_int dataThreshold = 4096;
+    u_int dataThreshold = DATA_THRESHOLD;
     rocksdb::DB* metaDataDB = hfs::db::createMetaDataDB(metadir);
     HFS_KeyHandler newHandler;
     HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold, metaDataDB,&newHandler);
-
 
     #ifdef DEBUG
       printf("Calling fuse_main...\n");

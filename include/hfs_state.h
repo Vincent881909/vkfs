@@ -6,6 +6,8 @@
 #include "rocksdb/db.h"
 #include "../include/hfs_KeyHandler.h"
 
+#define DATA_THRESHOLD 4000;
+
 class HFS_FileSystemState {
 private:
     std::string mntdir;
@@ -40,6 +42,7 @@ public:
     u_int getDataThreshold();
     void setKeyHandler(HFS_KeyHandler* newHandler);
     HFS_KeyHandler* getKeyHandler() const;
+    std::string getDataDir();
 };
 
 #endif
