@@ -53,7 +53,7 @@ int main(int argc, char *argv[]){
     
     u_int dataThreshold = 4096;
     rocksdb::DB* metaDataDB = hfs::db::createMetaDataDB(metadir);
-    KeyHandler newHandler;
+    HFS_KeyHandler newHandler;
     HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold, metaDataDB,&newHandler);
 
 

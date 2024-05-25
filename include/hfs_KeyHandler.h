@@ -6,6 +6,8 @@
 #include <queue>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <shared_mutex>
 
 #define MIN_KEY 0
 #define MAX_KEY UINT32_MAX
@@ -17,6 +19,7 @@ private:
     HFS_KEY currentKey;
     std::unordered_map<std::string, uint64_t> map;
     std::queue<uint64_t> queue;
+    mutable std::shared_mutex mutex;
 
 public:
     HFS_KeyHandler();
@@ -28,7 +31,7 @@ public:
     bool entryExists(const char* path);
     void eraseEntry(const char* path);
     int handleEntries(const char* path, HFS_KEY &key);
-    int handleErase(const char* path);
+    int handleErase(const char* path,HFS_KEY key);
 };
 
 #endif 

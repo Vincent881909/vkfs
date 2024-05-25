@@ -97,7 +97,6 @@ struct stat getFileStat(rocksdb::DB* metaDataDB, HFS_KEY key) {
 
     if (status.ok()) {
         uint8_t* flag = reinterpret_cast<uint8_t*>(headerValue.data);
-        printf("==========%u\n",*flag);
 
         if(*flag){
             HFSDirMetaData* metaData = reinterpret_cast<HFSDirMetaData*>(headerValue.data + HFS_FLAG_SIZE);
@@ -170,14 +169,18 @@ std::string getFileNamefromKey(rocksdb::DB* db, HFS_KEY key) {
             char* filename = new char[metaData->filename_len + 1];
             memcpy(filename,filenameBuffer,metaData->filename_len);
             filename[metaData->filename_len] = '\0';
-            return std::string(filename);
+            std::string result(filename);
+            delete[] filename;
+            return result;
         }else{
             HFSFileMetaData* metaData = reinterpret_cast<HFSFileMetaData*>(headerValue.data + HFS_FLAG_SIZE);
             char* filenameBuffer = headerValue.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE;
             char* filename = new char[metaData->filename_len + 1];
             memcpy(filename,filenameBuffer,metaData->filename_len);
             filename[metaData->filename_len] = '\0';
-            return std::string(filename);
+            std::string result(filename);
+            delete[] filename;
+            return result;
         }
     }
 }
@@ -230,6 +233,56 @@ void incrementParentDirLink(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key){
     //rocksdb::Slice dbKey = getKeySlice(key);
     rocksdb::Slice dbValue = getValueSlice(updatedHeaderField);
 
+    rocksdb::Status status = db->Put(rocksdb::WriteOptions(), std::to_string(parentKey), dbValue);
+
+    delete[] updatedHeaderField.data;
+}
+
+void deleteEntryAtParent(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key){
+    printf("entry\n");
+    std::string valueData;
+    rocksdb::Status s = db->Get(rocksdb::ReadOptions(), std::to_string(parentKey), &valueData);
+
+    HFSInodeValueSerialized headerData;
+    headerData.data = &valueData[0];
+    headerData.size = valueData.size();    
+    printf("f\n");
+    HFSDirMetaData* metaData = reinterpret_cast<HFSDirMetaData*>(headerData.data + HFS_FLAG_SIZE);
+    printf("d\n");
+    size_t noOfEntries = metaData->file_structure.st_nlink - 2;
+    printf("No of Entries: %d\n",noOfEntries);
+        if (noOfEntries == 0) {
+        // No entries to delete, return early
+        fprintf(stderr, "No entries to delete\n");
+        exit(0);
+        return;
+    }
+    std::vector<HFS_KEY> dirEntries;
+    dirEntries.reserve(noOfEntries - 1);
+    metaData->file_structure.st_nlink--;
+    char* keyBuffer = headerData.data + HFS_FLAG_SIZE + HFS_DIR_HEADER_SIZE + metaData->filename_len + 1;
+    printf("e\n");
+
+    if(noOfEntries > 1){
+        HFS_KEY* entryKey = nullptr;
+        for(uint32_t i = 0;i < noOfEntries;i++){
+            entryKey = (HFS_KEY*)keyBuffer;
+            if(*entryKey == key){
+                keyBuffer += sizeof(HFS_KEY);
+                continue;
+            }
+            //dirEntries[i] = *entryKey;
+            dirEntries.push_back(*entryKey);
+            keyBuffer += sizeof(HFS_KEY);
+        }
+        noOfEntries--;
+        keyBuffer = headerData.data + HFS_FLAG_SIZE + HFS_DIR_HEADER_SIZE + metaData->filename_len + 1;
+        memcpy(keyBuffer, dirEntries.data(),noOfEntries*sizeof(HFS_KEY));
+    }
+
+    headerData.size = valueData.size() - sizeof(HFS_KEY); 
+
+    rocksdb::Slice dbValue = getValueSlice(headerData);
     rocksdb::Status status = db->Put(rocksdb::WriteOptions(), std::to_string(parentKey), dbValue);
 }
 

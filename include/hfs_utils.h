@@ -34,9 +34,12 @@ namespace hfs {
         void* getMetaDatafromKey(rocksdb::DB* db, HFS_KEY key);
         void updateMetaData(rocksdb::DB* db, HFS_KEY key, struct stat new_stat);
         void incrementParentDirLink(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key);
+        void deleteEntryAtParent(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key);
         std::string getFileNamefromKey(rocksdb::DB* db, HFS_KEY key);
         HFSInodeValueSerialized getSerializedData(rocksdb::DB* db, HFS_KEY key);
         std::vector<HFS_KEY> getDirEntries(rocksdb::DB* db,HFS_KEY key);
+        void getReadBuffer(rocksdb::DB* db, HFS_KEY key, char*& buf, size_t size, size_t& bytesRead);
+        void getWriteBuffer(rocksdb::DB* db, HFS_KEY key, char*& buf, size_t size, HFSInodeValueSerialized& inodeData);
         
     }
 
