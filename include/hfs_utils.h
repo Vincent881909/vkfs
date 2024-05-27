@@ -18,6 +18,7 @@ namespace hfs {
     namespace inode {
         HFSInodeValueSerialized initDirHeader(struct stat fileStructure, std::string filename,mode_t mode);
         HFSInodeValueSerialized initFileHeader(struct stat fileStructure, std::string filename, mode_t mode);
+        HFSFileMetaData getFileHeader(rocksdb::DB* db,HFS_KEY key);
         void initStat(struct stat &statbuf, mode_t mode);
         struct stat getFileStat(rocksdb::DB* metaDataDB, HFS_KEY key);
         int getParentInodeNumber(const char* path);
@@ -25,7 +26,9 @@ namespace hfs {
         HFS_KeyHandler* getKeyHandler(struct fuse_context* context);
         int writeToKeyValue(rocksdb::DB* metaDataDB, HFS_KEY key,size_t size,const char* sourceBuf);
         void prepareWrite(HFSInodeValueSerialized& inodeData, const char* buf, size_t size, char*& newData);
-        void setBlobAndSize(rocksdb::DB* metaDataDB, HFS_KEY key,size_t writtenBytes);
+        void setBlobAndSize(rocksdb::DB* metaDataDB, HFS_KEY key,size_t newSize);
+        void truncateHeaderFile(rocksdb::DB* metaDataDB, HFS_KEY key,off_t len,size_t currentSize);
+        void truncateLocalFile(rocksdb::DB* metaDataDB, HFS_KEY key,off_t len);
     }
 
     namespace db {
@@ -51,6 +54,8 @@ namespace hfs {
         std::string getParentPath(const std::string& path);
         int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offset,HFS_KEY key,std::string datadir,rocksdb::DB* db);
         int readFromLocalFile(const char *path, const char *buf, size_t size, off_t offset,HFS_KEY key,std::string datadir);
+        std::string getLocalFilePath(HFS_KEY key,std::string datadir);
+        void migrateAndCleanData(rocksdb::DB* db,HFS_KEY key,std::string datadir,HFSFileMetaData header,const char* path);
     }
 
 }

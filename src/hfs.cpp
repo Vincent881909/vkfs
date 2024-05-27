@@ -311,7 +311,6 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
         return hfs::path::readFromLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
     }
 
-    //Need to 
     if(size > inodeValue->file_structure.st_size){
         size = size_t(inodeValue->file_structure.st_size);
     }
@@ -346,9 +345,17 @@ int hfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
         return -ENOENT; // Directory does not exist
     }
 
-    if(hfsState->getDataThreshold() < size){
+    HFSFileMetaData header = hfs::inode::getFileHeader(db,key);
+
+    if(header.has_external_data){
+        return hfs::path::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir(),db); 
+    }
+
+    if(size + offset > hfsState->getDataThreshold()){
+        hfs::path::migrateAndCleanData(db,key,hfsState->getDataDir(),header,path);
         return hfs::path::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir(),db);
     }
+
 
     std::string data;
     if (hfs::db::getValue(db, key, data) < 0) {
@@ -382,7 +389,38 @@ int hfs_truncate(const char *path, off_t len){
         printf("truncate called with path %s\n",path);
         printf("Returning 0\n\n");
     #endif
-    return 0;
+
+    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
+    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
+    HFS_KEY key;
+
+    if(keyHandler->getKeyFromPath(path,key) < 0){
+        #ifdef DEBUG
+            printf("Returning -ENONENT\n\n");
+        #endif
+        return -ENOENT; // Directory does not exist
+    }
+
+    HFSFileMetaData header = hfs::inode::getFileHeader(db,key);
+
+    if(len < hfsState->getDataThreshold() && !header.has_external_data){
+        hfs::inode::truncateHeaderFile(db,key,len,header.file_structure.st_size);
+        return 0;
+    }
+
+    std::string fullFilePath = hfs::path::getLocalFilePath(key,hfsState->getDataDir());
+
+    if(!header.has_external_data){
+        hfs::path::migrateAndCleanData(db,key,hfsState->getDataDir(),header,path);
+    }
+
+    header.file_structure.st_size = len;
+    hfs::db::updateMetaData(db,key,header.file_structure);
+
+    int ret = truncate(fullFilePath.c_str(),len);
+
+    return ret;
 }
 
 int hfs_flush(const char *path, struct fuse_file_info *){
