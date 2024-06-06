@@ -5,10 +5,9 @@ HFS_FileSystemState::HFS_FileSystemState(std::string mntdir,
                                          std::string metadir,
                                          std::string datadir,
                                          u_int dataThreshold,
-                                         rocksdb::DB* metaDataDB,
                                          HFS_KeyHandler* handler)
     : mntdir(std::move(mntdir)), metadir(std::move(metadir)), datadir(std::move(datadir)),
-      dataThreshold(dataThreshold), metaDataDB(metaDataDB), handler(handler) {}
+      dataThreshold(dataThreshold), handler(handler) {}
 
 
 // Definition of printState function
@@ -19,11 +18,6 @@ void HFS_FileSystemState::printState() const {
     std::cout << "Data Directory: " << datadir << std::endl;
     std::cout << "Data Threshold: " << dataThreshold << std::endl;
     std::cout << "Max Inode Number: " << maxInodeNum << std::endl;
-}
-
-// Definition of getMetaDataDB function
-rocksdb::DB* HFS_FileSystemState::getMetaDataDB() const {
-    return metaDataDB;
 }
 
 void HFS_FileSystemState::initalizeRoot(){
@@ -64,6 +58,10 @@ HFS_KeyHandler* HFS_FileSystemState::getKeyHandler() const {
 
 std::string HFS_FileSystemState::getDataDir(){
     return datadir;
+}
+
+std::string HFS_FileSystemState::getMetaDataDir(){
+    return metadir;
 }
 
 

@@ -2,6 +2,7 @@
 #include "../include/hash.h"
 #include "../include/hfs_inode.h"
 #include "../include/hfs_state.h"
+#include "../include/hfs_rocksdb.h"
 #include <iostream>
 #include <unistd.h>
 #include <sys/types.h>
@@ -20,7 +21,7 @@ HFS_KeyHandler* getKeyHandler(struct fuse_context* context){
 
 }
 
-void prepareWrite(HFSInodeValueSerialized& inodeData, const char* buf, size_t size, char*& newData) {
+void inlineWrite(HFSInodeValueSerialized& inodeData, const char* buf, size_t size, char*& newData) {
     HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data + HFS_FLAG_SIZE);
     inodeValue->file_structure.st_size = size;
 
@@ -79,7 +80,6 @@ void initStat(struct stat &statbuf, mode_t mode) {
     if (S_ISREG(mode)) {
         statbuf.st_nlink = 1;
     } else if (S_ISDIR(mode)) {
-        printf("Init stat is dir\n");
         statbuf.st_nlink = 2;
     }
 
@@ -140,37 +140,35 @@ HFSInodeValueSerialized initFileHeader(struct stat fileStructure, std::string fi
     return inode_data;
 }
 
-void truncateHeaderFile(rocksdb::DB* metaDataDB, HFS_KEY key,off_t len,size_t currentSize){
-
+void truncateHeaderFile( HFS_KEY key,off_t len,size_t currentSize){
+    HFSRocksDB* db = HFSRocksDB::getInstance();
     std::string data;
-    hfs::db::getValue(metaDataDB,key,data);
-    HFSInodeValueSerialized serialData;
-    serialData.data = &data[0];
-    serialData.size = data.size();
+    db->get(key,data);
+
+    HFSInodeValueSerialized headervalue;
+    headervalue.data = &data[0];
+    headervalue.size = data.size();
 
     if(len <= currentSize){ //Shrink File
-        serialData.size = serialData.size - currentSize + len;
+        headervalue.size = headervalue.size - currentSize + len;
     }else{ //Extend file with null bytes
-        char* newData = new char[serialData.size - currentSize + len];
-        memcpy(newData,serialData.data,serialData.size);
+        char* newData = new char[headervalue.size - currentSize + len];
+        memcpy(newData,headervalue.data,headervalue.size);
         size_t difference = len - currentSize;
-        memset(newData + serialData.size,0,difference);
-        serialData.size = serialData.size + difference;
-        serialData.data = newData;
+        memset(newData + headervalue.size,0,difference);
+        headervalue.size = headervalue.size + difference;
+        headervalue.data = newData;
     }
 
-    HFSFileMetaData* metaData = reinterpret_cast<HFSFileMetaData*>(serialData.data + HFS_FLAG_SIZE);
+    HFSFileMetaData* metaData = reinterpret_cast<HFSFileMetaData*>(headervalue.data + HFS_FLAG_SIZE);
     metaData->file_structure.st_size = len;
 
-    hfs::db::rocksDBInsert(metaDataDB,key,serialData);
+    db->put(key,headervalue);
 
     if(len > currentSize){
-        delete[] serialData.data;
+        delete[] headervalue.data;
     }
-
 }
-
-void truncateLocalFile(rocksdb::DB* metaDataDB, HFS_KEY key,off_t len);
 
 HFSFileMetaData getFileHeader(rocksdb::DB* db,HFS_KEY key){
     std::string data;
@@ -243,10 +241,6 @@ rocksdb::DB* createMetaDataDB(std::string metadir) {
     return db;
 }
 
-rocksdb::DB* getDBPtr(struct fuse_context* context) {
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(context->private_data);
-    return hfsState->getMetaDataDB();
-}
 
 rocksdb::Slice getKeySlice(HFS_KEY key) {
     return rocksdb::Slice(reinterpret_cast<const char*>(&key), sizeof(HFS_KEY));
@@ -329,7 +323,6 @@ void incrementParentDirLink(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key){
     HFSDirMetaData* metaData = reinterpret_cast<HFSDirMetaData*>(currentHeaderField.data + sizeof(HFS_DIR_FLAG));
 
     uint currentEntries = metaData->file_structure.st_nlink - 2; //Itself and "." entry not accounted for
-    printf("Current entries in parent dir: %u\n",currentEntries);
     metaData->file_structure.st_nlink++;
 
     HFSInodeValueSerialized updatedHeaderField;
@@ -351,7 +344,6 @@ void incrementParentDirLink(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key){
 }
 
 void deleteEntryAtParent(rocksdb::DB* db, HFS_KEY parentKey, HFS_KEY key){
-    printf("entry\n");
     std::string valueData;
     rocksdb::Status s = db->Get(rocksdb::ReadOptions(), std::to_string(parentKey), &valueData);
 
@@ -393,6 +385,7 @@ std::vector<HFS_KEY> getDirEntries(rocksdb::DB* db,HFS_KEY key){
     std::string valueData;
     rocksdb::Status s = db->Get(rocksdb::ReadOptions(), std::to_string(key), &valueData);
 
+
     HFSInodeValueSerialized dirHeader;
     dirHeader.data = &valueData[0];
     dirHeader.size = valueData.size();
@@ -405,7 +398,6 @@ std::vector<HFS_KEY> getDirEntries(rocksdb::DB* db,HFS_KEY key){
     for(int i = 0;i < noOfEntries;i++){
         entryKey = reinterpret_cast<HFS_KEY*>(keyBuffer);
         dirEntries[i] = *entryKey;
-        std::cout << "entry: " << dirEntries[i] << "\n";
         keyBuffer += sizeof(HFS_KEY);
     }
 
@@ -542,7 +534,7 @@ std::string getLocalFilePath(HFS_KEY key,std::string datadir){
     return fullPath.string();
 }
 
-int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offset, HFS_KEY key,std::string datadir,rocksdb::DB* db){
+int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offset, HFS_KEY key,std::string datadir){
     namespace fs = std::filesystem;
     fs::path fullPath = fs::path(getLocalFilePath(key,datadir));
 
@@ -562,8 +554,6 @@ int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offse
     }
 
     close(fd);
-
-    hfs::inode::setBlobAndSize(db,key,size + offset);
 
     return bytesWritten;
 }
@@ -589,23 +579,24 @@ int readFromLocalFile(const char *path, const char *buf, size_t size, off_t offs
     return bytesRead;
 }
 
-void migrateAndCleanData(rocksdb::DB* db,HFS_KEY key,std::string datadir,HFSFileMetaData header,const char* path){
+void migrateAndCleanData(HFS_KEY key,std::string datadir,HFSFileMetaData header,const char* path){
+    HFSRocksDB* db = HFSRocksDB::getInstance();
+    
+    std::string data;
+    db->get(key,data);
 
-    HFSInodeValueSerialized keyValue;
-    hfs::db::getSerializedData(db,key,keyValue);
+    HFSInodeValueSerialized headerValue;
+    headerValue.data = &data[0];
+    headerValue.size = data.size();
 
-    const char* dataOffs = keyValue.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + header.filename_len + 1;
+    const char* dataOffs = headerValue.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + header.filename_len + 1;
 
     //Copy existing data to local file system
-    hfs::path::writeToLocalFile(path,dataOffs,header.file_structure.st_size,0,key,datadir,db);
-    keyValue.size = keyValue.size - header.file_structure.st_size;
+    hfs::path::writeToLocalFile(path,dataOffs,header.file_structure.st_size,0,key,datadir);
+    headerValue.size = headerValue.size - header.file_structure.st_size;
 
-    //
-    HFSFileMetaData* newHeader = reinterpret_cast<HFSFileMetaData*>(keyValue.data + HFS_FLAG_SIZE);
-    newHeader->has_external_data = 1;
-    hfs::db::rocksDBInsert(db,key,keyValue);
-
-    delete[] keyValue.data;
+    db->put(key,headerValue);
+    db->setBlob(key);
 
 }} // namespace path
 }// namespace hfs

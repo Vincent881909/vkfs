@@ -15,7 +15,6 @@ private:
     std::string datadir;
     u_int dataThreshold;
     int maxInodeNum = 0;
-    rocksdb::DB* metaDataDB;
     bool rootInitialized = false;
     bool idsInitialized = false;
     HFS_KeyHandler* handler = nullptr;
@@ -26,13 +25,11 @@ public:
                         std::string metadir,
                         std::string datadir,
                         u_int dataThreshold,
-                        rocksdb::DB* metaDataDB,
                         HFS_KeyHandler* handler = nullptr);
 
 
     // Member functions
     void printState() const;
-    rocksdb::DB* getMetaDataDB() const;
     void initalizeRoot();
     bool getRootInitFlag();
     bool getIDFlag();
@@ -43,6 +40,7 @@ public:
     void setKeyHandler(HFS_KeyHandler* newHandler);
     HFS_KeyHandler* getKeyHandler() const;
     std::string getDataDir();
+    std::string getMetaDataDir();
 };
 
 #endif

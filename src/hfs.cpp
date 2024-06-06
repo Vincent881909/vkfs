@@ -1,8 +1,9 @@
 #include "../include/hfs.h"
 #include "../include/hfs_state.h"
 #include "../include/hash.h"
-#include <../include/hfs_inode.h>
-#include <../include/hfs_utils.h>
+#include "../include/hfs_inode.h"
+#include "../include/hfs_utils.h"
+#include "../include/hfs_rocksdb.h"
 #include <iostream>
 #include <unistd.h>
 #include <string.h>
@@ -18,10 +19,11 @@ void *hfs_init(struct fuse_conn_info *conn) {
 
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context()); 
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
 
     if (!hfsState->getRootInitFlag()) { // Root directory not initialized
 
+        db->initDatabase(hfsState->getMetaDataDir());
         HFS_KEY key;
         keyHandler->handleEntries(hfs::ROOT_PATH,key);
     
@@ -31,8 +33,7 @@ void *hfs_init(struct fuse_conn_info *conn) {
         statbuf.st_ino = hfs::ROOT_KEY;
 
         HFSInodeValueSerialized value = hfs::inode::initDirHeader(statbuf, hfs::ROOT_PATH, 0755);
-        rocksdb::Slice dbValue = hfs::db::getValueSlice(value);
-        rocksdb::Status status = db->Put(rocksdb::WriteOptions(), std::to_string(key), dbValue);
+        db->put(key,value);
 
         delete[] value.data;
     }
@@ -48,7 +49,7 @@ int hfs_getattr(const char *path, struct stat *statbuf) {
 
     struct fuse_context* context = fuse_get_context();
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(context);
-    rocksdb::DB* db = hfs::db::getDBPtr(context);
+    HFSRocksDB* db = HFSRocksDB::getInstance();
 
     HFS_KEY key;
 
@@ -65,7 +66,7 @@ int hfs_getattr(const char *path, struct stat *statbuf) {
 
     memset(statbuf, 0, sizeof(struct stat));
 
-    fileStat = hfs::inode::getFileStat(db, key);
+    fileStat = db->getMetaData(key);
 
     fileStat.st_atim = now; // Set Access time to now
     fileStat.st_mtim = now; // Set modified time to now
@@ -74,9 +75,9 @@ int hfs_getattr(const char *path, struct stat *statbuf) {
 
     *statbuf = fileStat;
 
-    hfs::db::updateMetaData(db, key,*statbuf);
+    int ret = db->updateMetaData(key,*statbuf);
 
-    return 0;
+    return ret;
 }
 
 int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
@@ -86,7 +87,7 @@ int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     #endif
 
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
 
     if (filler(buf, ".", NULL, 0) < 0) {
         return -ENOMEM;
@@ -95,15 +96,15 @@ int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
         return -ENOMEM;
     }
 
-    HFS_KEY dirKey;
-    keyHandler->getKeyFromPath(path,dirKey);
-    std::vector<HFS_KEY> entries = hfs::db::getDirEntries(db,dirKey);
+    HFS_KEY key;
+    keyHandler->getKeyFromPath(path,key);
+    std::vector<HFS_KEY> entries = db->getDirEntries(key);
 
     for(uint32_t i = 0; i < entries.size(); i ++){
-        std::string filename = hfs::db::getFileNamefromKey(db,entries[i]);
-        struct stat fileStat = hfs::inode::getFileStat(db,entries[i]);
+        std::string filename = db->getFilename(entries[i]);
+        struct stat fileStat = db->getMetaData(entries[i]);
 
-        if (filler(buf, filename.c_str(), &fileStat, 0) < 0) {         // Fill buf with metadata
+        if (filler(buf, filename.c_str(), &fileStat, 0) < 0) {  // Fill buf with metadata
         #ifdef DEBUG
             printf("Returning -ENOMEM\n\n");
         #endif  
@@ -121,7 +122,7 @@ int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
 
     std::string parentDirStr = hfs::path::getParentPath(std::string(path));
     const char* parentDirPath = parentDirStr.c_str();
@@ -142,14 +143,23 @@ int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     statbuf.st_mode = S_IFREG | mode;
 
     HFSInodeValueSerialized value = hfs::inode::initFileHeader(statbuf, fileName, mode);
-    rocksdb::Status status = db->Put(rocksdb::WriteOptions(), std::to_string(key), hfs::db::getValueSlice(value));
+    int ret = db->put(key,value);
 
     delete[] value.data;
 
+    if(ret < 0){
+        return ret;
+    }
+
     // Update parent's metadata
     HFS_KEY parentKey;
-    keyHandler->getKeyFromPath(parentDirPath,parentKey);
-    hfs::db::incrementParentDirLink(db,parentKey,key);
+    if(keyHandler->getKeyFromPath(parentDirPath,parentKey) < 0){
+        return -1;
+    }
+
+    if(db->incrementDirLinkCount(parentKey,key) < 0){
+        return -1;
+    }
     
     return 0;
 }
@@ -161,7 +171,7 @@ int hfs_mkdir(const char *path, mode_t mode) {
 
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
 
     std::string parentDirPathStr = hfs::path::getParentPath(std::string(path));
     const char* parentDirPath = parentDirPathStr.c_str();
@@ -182,14 +192,23 @@ int hfs_mkdir(const char *path, mode_t mode) {
     statbuf.st_mode = S_IFDIR | mode;
 
     HFSInodeValueSerialized value = hfs::inode::initDirHeader(statbuf, dirNameStr, mode);
-    rocksdb::Status status = db->Put(rocksdb::WriteOptions(), std::to_string(key), hfs::db::getValueSlice(value));
+    int ret = db->put(key,value);
 
     delete[] value.data;
 
-    // Update parent's metadata -> Can put this into one function
+    if(ret < 0){
+        return ret;
+    }
+
+    // Update parent's metadata
     HFS_KEY parentKey;
-    keyHandler->getKeyFromPath(parentDirPath,parentKey);
-    hfs::db::incrementParentDirLink(db,parentKey,key);
+    if(keyHandler->getKeyFromPath(parentDirPath,parentKey) < 0){
+        return -1;
+    }
+
+    if(db->incrementDirLinkCount(parentKey,key) < 0){
+        return -1;
+    }
     
     return 0;
 }
@@ -200,7 +219,7 @@ int hfs_utimens(const char *path, const struct timespec tv[2]) {
         printf("utimens called with path %s\n", path);
     #endif
 
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
     HFS_KEY key;
 
@@ -211,12 +230,11 @@ int hfs_utimens(const char *path, const struct timespec tv[2]) {
         return -ENOENT; // File does not exist
     }
 
-    struct stat fileStructure = hfs::inode::getFileStat(db, key);
-    fileStructure.st_atim = tv[0];
-    fileStructure.st_mtim = tv[1];
-    hfs::db::updateMetaData(db, key, fileStructure);
+    struct stat metaData = db->getMetaData(key);
+    metaData.st_atim = tv[0];
+    metaData.st_mtim = tv[1];
 
-    return 0;
+    return db->updateMetaData(key,metaData);
 }
 
 int hfs_unlink(const char *path){
@@ -225,7 +243,7 @@ int hfs_unlink(const char *path){
         printf("unlink called with path %s\n", path);
     #endif
 
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
     HFS_KEY key;
 
@@ -236,16 +254,20 @@ int hfs_unlink(const char *path){
         return -ENOENT; // File does not exist
     }
 
-    rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), std::to_string(key));
+    if(db->remove(key) < 0){
+        return -1;
+    }
+
     keyHandler->handleErase(path,key);
 
     // Update parent's metadata field
     HFS_KEY parentKey;
     std::string parentDirPath = hfs::path::getParentPath(std::string(path));
-    keyHandler->getKeyFromPath(parentDirPath.c_str(),parentKey);
-    hfs::db::deleteEntryAtParent(db,parentKey,key);
+    if(keyHandler->getKeyFromPath(parentDirPath.c_str(),parentKey) < 0){
+        return -1;
+    }
 
-    return 0;
+    return db->deleteDirEntry(parentKey,key);
 
 }
 
@@ -254,7 +276,7 @@ int hfs_rmdir(const char *path){
         printf("rmdir called with path %s\n",path);
     #endif
 
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
     HFS_KEY key;
 
@@ -265,16 +287,21 @@ int hfs_rmdir(const char *path){
         return -ENOENT; // Directory does not exist
     }
 
-    rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), std::to_string(key));
+    if(db->remove(key) < 0){
+        return -1;
+    }
+
     keyHandler->handleErase(path,key);
 
     //Update parent's metadata field
     HFS_KEY parentKey;
     std::string parentDirPath = hfs::path::getParentPath(std::string(path));
-    keyHandler->getKeyFromPath(parentDirPath.c_str(),parentKey);
-    hfs::db::deleteEntryAtParent(db,parentKey,key);
 
-    return 0;
+    if(keyHandler->getKeyFromPath(parentDirPath.c_str(),parentKey) < 0){
+        return -1;
+    }
+
+    return db->deleteDirEntry(parentKey,key);
 }
 
 int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
@@ -285,7 +312,7 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     
     //Fetch file -> either fi or helper functions
     struct fuse_context* context = fuse_get_context();
-    rocksdb::DB* db = hfs::db::getDBPtr(context);
+    HFSRocksDB* db = HFSRocksDB::getInstance();
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(context);
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
     HFS_KEY key;
@@ -298,14 +325,14 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     }
     
     std::string data;
-    if (hfs::db::getValue(db, key, data) < 0) {
-        return -ENOENT;
+    if(db->get(key,data) < 0){
+        return -1;
     }
 
-    HFSInodeValueSerialized inodeData;
-    inodeData.data = &data[0]; 
-    inodeData.size = data.size();
-    HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data + HFS_FLAG_SIZE);
+    HFSInodeValueSerialized headerValue;
+    headerValue.data = &data[0]; 
+    headerValue.size = data.size();
+    HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(headerValue.data + HFS_FLAG_SIZE);
 
     if(inodeValue->has_external_data){
         return hfs::path::readFromLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
@@ -315,7 +342,7 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
         size = size_t(inodeValue->file_structure.st_size);
     }
 
-    char* dataFieldptr = inodeData.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1;
+    char* dataFieldptr = headerValue.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1;
     memcpy(buf,dataFieldptr,size);
 
 
@@ -333,7 +360,7 @@ int hfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
     #endif
 
     //Fetch file -> either fi or helper functions
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
     HFS_KEY key;
@@ -345,30 +372,32 @@ int hfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
         return -ENOENT; // Directory does not exist
     }
 
-    HFSFileMetaData header = hfs::inode::getFileHeader(db,key);
+    HFSFileMetaData header = db->getFileHeader(key);
 
     if(header.has_external_data){
-        return hfs::path::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir(),db); 
+        int bytesWritten = hfs::path::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
+        db->setBlob(key);
+        db->setNewFileSize(key,size + offset);
+        return  bytesWritten;
     }
 
     if(size + offset > hfsState->getDataThreshold()){
-        hfs::path::migrateAndCleanData(db,key,hfsState->getDataDir(),header,path);
-        return hfs::path::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir(),db);
+        hfs::path::migrateAndCleanData(key,hfsState->getDataDir(),header,path);
+        return hfs::path::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
     }
-
 
     std::string data;
-    if (hfs::db::getValue(db, key, data) < 0) {
-        return -ENOENT;
+    if(db->get(key,data) < 0){
+        return -1;
     }
 
-    HFSInodeValueSerialized inodeData;
-    inodeData.data = &data[0];
-    inodeData.size = data.length();
+    HFSInodeValueSerialized headerValue;
+    headerValue.data = &data[0];
+    headerValue.size = data.length();
 
     char* newData = nullptr;
-    hfs::inode::prepareWrite(inodeData, buf, size, newData);
-    hfs::db::rocksDBInsert(db,key,inodeData);
+    hfs::inode::inlineWrite(headerValue, buf, size, newData);
+    db->put(key,headerValue);
 
     delete[] newData;
     
@@ -390,7 +419,7 @@ int hfs_truncate(const char *path, off_t len){
         printf("Returning 0\n\n");
     #endif
 
-    rocksdb::DB* db = hfs::db::getDBPtr(fuse_get_context());
+    HFSRocksDB* db = HFSRocksDB::getInstance();
     HFS_KeyHandler* keyHandler = hfs::inode::getKeyHandler(fuse_get_context());
     HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
     HFS_KEY key;
@@ -402,25 +431,23 @@ int hfs_truncate(const char *path, off_t len){
         return -ENOENT; // Directory does not exist
     }
 
-    HFSFileMetaData header = hfs::inode::getFileHeader(db,key);
+    HFSFileMetaData header = db->getFileHeader(key);
 
     if(len < hfsState->getDataThreshold() && !header.has_external_data){
-        hfs::inode::truncateHeaderFile(db,key,len,header.file_structure.st_size);
+        hfs::inode::truncateHeaderFile(key,len,header.file_structure.st_size);
         return 0;
     }
 
     std::string fullFilePath = hfs::path::getLocalFilePath(key,hfsState->getDataDir());
 
     if(!header.has_external_data){
-        hfs::path::migrateAndCleanData(db,key,hfsState->getDataDir(),header,path);
+        hfs::path::migrateAndCleanData(key,hfsState->getDataDir(),header,path);
     }
 
     header.file_structure.st_size = len;
-    hfs::db::updateMetaData(db,key,header.file_structure);
+    db->updateMetaData(key,header.file_structure);
 
-    int ret = truncate(fullFilePath.c_str(),len);
-
-    return ret;
+    return truncate(fullFilePath.c_str(),len);
 }
 
 int hfs_flush(const char *path, struct fuse_file_info *){
