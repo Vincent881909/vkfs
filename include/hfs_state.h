@@ -6,7 +6,7 @@
 #include "rocksdb/db.h"
 #include "../include/hfs_KeyHandler.h"
 
-#define DATA_THRESHOLD 4000;
+#define DATA_THRESHOLD (64 * 1024);
 
 class HFS_FileSystemState {
 private:
