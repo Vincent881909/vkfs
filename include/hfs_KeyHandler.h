@@ -1,5 +1,5 @@
-#ifndef KEYHANDLER_H
-#define KEYHANDLER_H
+#ifndef HFS_KEYHANDLER_H
+#define HFS_KEYHANDLER_H
 
 #include <iostream>
 #include <unordered_map>

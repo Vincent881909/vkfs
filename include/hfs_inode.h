@@ -27,10 +27,10 @@ struct HFSInodeValueSerialized{
 
 static const size_t HFS_FILE_HEADER_SIZE = sizeof(HFSFileMetaData);
 static const size_t HFS_DIR_HEADER_SIZE = sizeof(HFSDirMetaData);
+static const size_t HFS_FLAG_SIZE = sizeof(uint8_t);
 static const uint8_t HFS_FILE_FLAG = 0;
 static const uint8_t HFS_DIR_FLAG = 1;
-static const size_t HFS_FLAG_SIZE = sizeof(uint8_t);
-
+static const uint8_t HFS_MAX_FILE_LEN = 255;
 
 
 #endif
