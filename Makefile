@@ -1,9 +1,9 @@
 CXX         := g++
-CXX_FLAGS   := -Wall -Wextra -std=c++17 -D_FILE_OFFSET_BITS=64
+CXX_FLAGS   := -Wall -Wextra -std=c++17 -D_FILE_OFFSET_BITS=64 -fsanitize=address -ggdb -I/usr/include/fuse3 -DFUSE_USE_VERSION=31
 BIN         := bin
 SRC         := src
 INCLUDE     := include
-LIBRARIES   := -lfuse
+LIBRARIES   := -L/usr/lib/aarch64-linux-gnu -lfuse3
 EXECUTABLE  := hybridfs
 
 MOUNTPOINT   := mntdir
