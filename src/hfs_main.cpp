@@ -1,9 +1,10 @@
-#define FUSE_USE_VERSION 26
+#define FUSE_USE_VERSION 31
 
-#include "../include/hfs.h"
+#include "../include/hfs_fuse.h"
 #include "../include/hfs_state.h"
 #include "../include/hfs_utils.h"
 #include "../include/hfs_KeyHandler.h"
+#include "../include/hfs_rocksdb.h"
 #include <iostream>
 #include <fuse.h>
 #include <assert.h>
@@ -26,45 +27,57 @@ struct fuse_operations hfs_oper = {
   .fsync = hfs_fsync,
   .readdir = hfs_readdir,
   .init = hfs_init,
+  .destroy = hfs_destroy,
   .create = hfs_create,
   .utimens = hfs_utimens,
   .fallocate = hfs_fallocate,
 };
 
+void hfsUsage() {
+    printf("Usage: hybridfs <mount_dir> <meta_dir> <data_dir>\n");
+    printf("\n");
+    printf("    <mount_dir>  - Directory to mount the file system\n");
+    printf("    <meta_dir>   - Directory to store metadata\n");
+    printf("    <data_dir>   - Directory to store data in underlying file system\n");
+    printf("\n");
+    printf("Example:\n");
+    printf("    ./hybridfs mntdir metadir datadir\n");
+}
+
 int main(int argc, char *argv[]){
 
+    if(argc < 4){
+        hfsUsage();
+        return -1;
+    }
+ 
     std::string mountdir(argv[1]);
     std::string metadir(argv[2]);
     std::string datadir(argv[3]);
 
-    char *fuse_argv[20];
-    int fuse_argc = 0;
-    fuse_argv[fuse_argc++] = argv[0];
-    char fuse_mount_dir[100];
-    strcpy(fuse_mount_dir, mountdir.c_str());
-    fuse_argv[fuse_argc++] = fuse_mount_dir;
-    fuse_argv[fuse_argc++] = "-f"; //Run Fuse in the Foreground
-    //fuse_argv[fuse_argc++] = "-d"; //Verbose debug output
-    fuse_argv[fuse_argc++] = "-s"; //Single threaded mode
-    //fuse_argv[fuse_argc++] = "default_permissions"; //Single threaded mode
-    fuse_argv[fuse_argc++] = "-o"; // Allow access to other users
-    fuse_argv[fuse_argc++] = "allow_other"; // Allow access to other users
+    struct fuse_args fuseArgs = FUSE_ARGS_INIT(0, NULL);
+    fuse_opt_add_arg(&fuseArgs, argv[0]); //Progam Name
+    fuse_opt_add_arg(&fuseArgs, argv[1]); //Mount Directory
+    fuse_opt_add_arg(&fuseArgs, "-f"); //Run Fuse in the Foreground
+    fuse_opt_add_arg(&fuseArgs, "-oallow_other"); // Allow access to other users
+    //fuse_opt_add_arg(&fuseArgs, "-d"); // Debug flag
+  
     int fuse_state;
-    
     u_int dataThreshold = DATA_THRESHOLD;
-    rocksdb::DB* metaDataDB = hfs::db::createMetaDataDB(metadir);
     HFS_KeyHandler newHandler;
-    HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold, metaDataDB,&newHandler);
+    HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold,&newHandler);
 
     #ifdef DEBUG
       printf("Calling fuse_main...\n");
     #endif
 
-    fuse_state = fuse_main(fuse_argc, fuse_argv, &hfs_oper, &hfsState);
+    fuse_state = fuse_main(fuseArgs.argc, fuseArgs.argv, &hfs_oper, &hfsState);
 
     #ifdef DEBUG
       printf("fuse_main has exited with code: %d\n", fuse_state);
     #endif
+
+    fuse_opt_free_args(&fuseArgs); //Clean up fuse args
 
     return fuse_state;
 }
