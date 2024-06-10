@@ -2,8 +2,12 @@
 #include "../include/hfs_utils.h"
 #include "../include/hfs_inode.h"
 #include "rocksdb/db.h"
+#include "rocksdb/cache.h"
+#include "rocksdb/options.h"
+#include "rocksdb/table.h"
 #include <filesystem>
 #include <iostream>
+#include <filesystem>
 
 HFSRocksDB* HFSRocksDB::SingletonRocksDB = nullptr;
 
@@ -12,6 +16,7 @@ HFSRocksDB::HFSRocksDB() : db(nullptr) {}
 HFSRocksDB::~HFSRocksDB() {
     if (db) {
         delete db;
+        db = nullptr;
     }
 }
 
@@ -22,22 +27,69 @@ HFSRocksDB* HFSRocksDB::getInstance() {
     return SingletonRocksDB;
 }
 
+void HFSRocksDB::initOptions(){
+
+    //This needs fixing and more research
+
+    size_t cache_capacity = 1024 * 1024 * 1024; // 1 GB
+
+    // Create a shared pointer to a new LRU cache with the specified capacity
+    std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewLRUCache(cache_capacity);
+    tableOptions.block_cache = cache;
+
+
+    // Apply the BlockBasedTableOptions to RocksDB Options
+    options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(tableOptions));
+
+    //Recommended settings from RocksDB Wiki
+    options.bytes_per_sync = 1048576;
+    options.compaction_pri = rocksdb::kMinOverlappingRatio;
+    tableOptions.block_size = 16 * 1024;
+    tableOptions.cache_index_and_filter_blocks = true;
+    tableOptions.pin_l0_filter_and_index_blocks_in_cache = true;
+    options.create_if_missing = true;
+
+    //Setup BloomFilter
+    int bloom_filter_bits_per_key = 10; // Number of bits used for each key in the Bloom filter
+    tableOptions.filter_policy.reset(rocksdb::NewBloomFilterPolicy(bloom_filter_bits_per_key));
+
+    //Assign BlockBasedTableOptions to the DB options
+    options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(tableOptions));
+    tableOptions.optimize_filters_for_memory = true;
+
+    writeOptions.disableWAL = false;
+
+}
+
+void HFSRocksDB::initReadOptions(){
+    //TODO
+}
+
+void HFSRocksDB::initWriteOptions(){
+    //TODO
+}
+
 int HFSRocksDB::initDatabase(const std::string& dataBaseDirectory) {
     if (db) {
-        printf("Database already initialzed\n");
+        printf("Database already initialized\n");
         return -1;
     }
 
+    HFSRocksDB::initOptions();
+    HFSRocksDB::initReadOptions();
+    HFSRocksDB::initWriteOptions();
+
     int ret;
-    std::string dbPath = hfs::path::getCurrentPath() + "/" + dataBaseDirectory;
+    namespace fs = std::filesystem;
+    std::string projectPath = hfs::path::getProjectRoot();
+    std::string dbPath = projectPath + "/" + dataBaseDirectory;
     std::filesystem::remove_all(dbPath);
 
-    rocksdb::Options options;
-    options.create_if_missing = true;
+    // Open the database
     rocksdb::Status status = rocksdb::DB::Open(options, dbPath, &db);
 
     if (!status.ok()) {
-        printf("Failed to open Database %s" ,status.ToString());
+        printf("Failed to open Database: %s\n", status.ToString().c_str());
         ret = -1;
     } else {
         printf("Database opened successfully\n");
@@ -47,9 +99,23 @@ int HFSRocksDB::initDatabase(const std::string& dataBaseDirectory) {
     return ret;
 }
 
+void HFSRocksDB::cleanup(){
+    if (db) {
+        delete db;
+        db = nullptr;
+    }
+}
+
+void HFSRocksDB::printStatusErr(rocksdb::Status status){
+    std::cout << "Operation successful: " << status.ToString() << std::endl;
+}
+
 int HFSRocksDB::get(const HFS_KEY key, std::string& value) {
     rocksdb::Status status = db->Get(rocksdb::ReadOptions(), std::to_string(key), &value);
     if (!status.ok()) {
+        #ifdef DEBUG
+            HFSRocksDB::printStatusErr(status);
+        #endif
         return -1;
     }
     return 0;
@@ -58,6 +124,9 @@ int HFSRocksDB::get(const HFS_KEY key, std::string& value) {
 int HFSRocksDB::put(const HFS_KEY key, const HFSInodeValueSerialized& value) {
     rocksdb::Status status = db->Put(rocksdb::WriteOptions(), std::to_string(key), getValueSlice(value));
     if (!status.ok()) {
+        #ifdef DEBUG
+            HFSRocksDB::printStatusErr(status);
+        #endif
         return -1;
     }
     return 0;
@@ -191,7 +260,6 @@ int HFSRocksDB::incrementDirLinkCount(HFS_KEY parentKey, HFS_KEY key){
     delete[] newHeader.data;
 
     return ret;
-
 }
 
 int HFSRocksDB::deleteDirEntry(HFS_KEY parentKey, HFS_KEY key){
