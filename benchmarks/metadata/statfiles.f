@@ -1,4 +1,4 @@
-set $dir=/home/parallels/Developer/hybridfs/mntdir
+set $dir=mntdir
 set $nfiles=10000
 set $meandirwidth=20
 set $filesize=4k
