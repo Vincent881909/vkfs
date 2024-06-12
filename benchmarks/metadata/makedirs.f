@@ -1,9 +1,8 @@
-# Creates a directory with $ndirs potential leaf directories, than mkdir's them
 
 set $dir=/home/parallels/Developer/hybridfs/mntdir
 set $ndirs=100000
 set $meandirwidth=100
-set $nthreads=16
+set $nthreads=1
 
 set mode quit firstdone
 

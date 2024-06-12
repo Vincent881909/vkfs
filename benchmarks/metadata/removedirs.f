@@ -1,13 +1,12 @@
-# Creates a fileset with $ndirs empty leaf directories then rmdir's all of them
 
 set $dir=/home/parallels/Developer/hybridfs/mntdir
 set $ndirs=10000
 set $meandirwidth=100
-set $nthreads=16
+set $nthreads=1
 
 set mode quit firstdone
 
-define fileset name=bigfileset,path=$dir,size=0,leafdirs=$ndirs,dirwidth=$meandirwidth,prealloc
+define fileset name=bigfileset,path=$dir,size=4,leafdirs=$ndirs,dirwidth=$meandirwidth,prealloc
 
 define process name=remdir,instances=1
 {

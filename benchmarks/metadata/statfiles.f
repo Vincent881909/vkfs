@@ -1,11 +1,8 @@
-# Creates a fileset of $nfiles number of files, then loops through them
-# using $nthreads number of threads, doing "stat" calls on each file.
-
-set $dir=mntdir
+set $dir=/home/parallels/Developer/hybridfs/mntdir
 set $nfiles=10000
-set $meandirwidth=6
-set $filesize=3k
-set $nthreads=8
+set $meandirwidth=20
+set $filesize=4k
+set $nthreads=1
 
 define fileset name=bigfileset,path=$dir,size=$filesize,entries=$nfiles,dirwidth=$meandirwidth,prealloc=100
 
@@ -17,4 +14,4 @@ define process name=examinefiles,instances=1
   }
 }
 
-run 10
+run 30

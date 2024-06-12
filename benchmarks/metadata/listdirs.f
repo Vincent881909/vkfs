@@ -1,11 +1,9 @@
-# Creates a fileset with a fairly deep directory tree, then does readdir
-# operations on them for a specified amount of time.
 
 set $dir=/home/parallels/Developer/hybridfs/mntdir
-set $nfiles=5
-set $meandirwidth=1
+set $nfiles=50000
+set $meandirwidth=5
 set $nthreads=1
-set $meanfilesize=0
+set $meanfilesize=4k
 
 define fileset name=bigfileset,path=$dir,size=$meanfilesize,entries=$nfiles,dirwidth=$meandirwidth,prealloc
 
@@ -17,4 +15,5 @@ define process name=lsdir,instances=1
   }
 }
 
-run 60
+run 30
+
