@@ -1,12 +1,12 @@
 CXX         := g++
-CXX_FLAGS   := -Wall -Wextra -std=c++17 -D_FILE_OFFSET_BITS=64 -fsanitize=address -ggdb -I/usr/include/fuse3 -DFUSE_USE_VERSION=31
+CXX_FLAGS   := -Wall -Wextra -std=c++17 -D_FILE_OFFSET_BITS=64 -fsanitize=address -ggdb $(shell pkg-config --cflags fuse3) -DFUSE_USE_VERSION=31
 BIN         := bin
 SRC         := src
 INCLUDE     := include
-LIBRARIES   := -L/usr/lib/aarch64-linux-gnu -lfuse3
+LIBRARIES   := $(shell pkg-config --libs fuse3)
 EXECUTABLE  := hybridfs
 
-MOUNTPOINT   := mntdir
+MOUNT_DIR   := mntdir
 METADATA_DIR := metadir
 DATA_DIR     := datadir
 
@@ -14,17 +14,17 @@ SOURCES     := $(wildcard $(SRC)/*.cpp)
 OBJECTS     := $(SOURCES:$(SRC)/%.cpp=$(BIN)/%.o)
 DEPENDENCIES:= $(OBJECTS:.o=.d)
 
-ROCKSDB_DIR := /home/parallels/Developer/rocksdb
+ROCKSDB_DIR := ./rocksdb
 ROCKSDB_LIB := $(ROCKSDB_DIR)/librocksdb.a
-COMPRESSION_LIB := -lsnappy -lgflags -lz -lbz2 -llz4 -lzstd -lpthread -lrt -ldl
+COMPRESSION_LIB := -lsnappy -lz -lbz2 -llz4 -lzstd -lpthread -lrt -ldl
 
 all: $(BIN)/$(EXECUTABLE)
 
 run: $(BIN)/$(EXECUTABLE)
-	./$< $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
+	./$< $(MOUNT_DIR) $(METADATA_DIR) $(DATA_DIR)
 
 run_debug: $(BIN)/$(EXECUTABLE)_debug
-	./$< $(MOUNTPOINT) $(METADATA_DIR) $(DATA_DIR)
+	./$< $(MOUNT_DIR) $(METADATA_DIR) $(DATA_DIR)
 
 $(BIN)/$(EXECUTABLE): $(OBJECTS) $(ROCKSDB_LIB)
 	$(CXX) $(CXX_FLAGS) -I$(INCLUDE) $^ -o $@ $(LIBRARIES) $(COMPRESSION_LIB)
