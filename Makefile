@@ -1,5 +1,5 @@
 CXX         := g++
-CXX_FLAGS   := -Wall -Wextra -std=c++17 -D_FILE_OFFSET_BITS=64 -fsanitize=address -ggdb $(shell pkg-config --cflags fuse3) -DFUSE_USE_VERSION=31
+CXX_FLAGS   := -Wall -Wextra -std=c++17 -D_FILE_OFFSET_BITS=64 -fsanitize=address -ggdb $(shell pkg-config --cflags fuse3) -DFUSE_USE_VERSION=31 -I./rocksdb/include
 BIN         := bin
 SRC         := src
 INCLUDE     := include
