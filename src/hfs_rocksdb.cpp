@@ -30,16 +30,11 @@ HFSRocksDB* HFSRocksDB::getInstance() {
 void HFSRocksDB::initOptions(){
 
     //This needs fixing and more research
-
     size_t cache_capacity = 1024 * 1024 * 1024; // 1 GB
 
     // Create a shared pointer to a new LRU cache with the specified capacity
     std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewLRUCache(cache_capacity);
     tableOptions.block_cache = cache;
-
-
-    // Apply the BlockBasedTableOptions to RocksDB Options
-    options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(tableOptions));
 
     //Recommended settings from RocksDB Wiki
     options.bytes_per_sync = 1048576;
@@ -50,8 +45,8 @@ void HFSRocksDB::initOptions(){
     options.create_if_missing = true;
 
     //Setup BloomFilter
-    int bloom_filter_bits_per_key = 10; // Number of bits used for each key in the Bloom filter
-    tableOptions.filter_policy.reset(rocksdb::NewBloomFilterPolicy(bloom_filter_bits_per_key));
+    //int bloom_filter_bits_per_key = 10; // Number of bits used for each key in the Bloom filter
+    //tableOptions.filter_policy.reset(rocksdb::NewBloomFilterPolicy(bloom_filter_bits_per_key));
 
     //Assign BlockBasedTableOptions to the DB options
     options.table_factory.reset(rocksdb::NewBlockBasedTableFactory(tableOptions));
@@ -111,7 +106,7 @@ void HFSRocksDB::printStatusErr(rocksdb::Status status){
 }
 
 int HFSRocksDB::get(const HFS_KEY key, std::string& value) {
-    rocksdb::Status status = db->Get(rocksdb::ReadOptions(), std::to_string(key), &value);
+    rocksdb::Status status = db->Get(readOptions, std::to_string(key), &value);
     if (!status.ok()) {
         #ifdef DEBUG
             HFSRocksDB::printStatusErr(status);
@@ -122,7 +117,7 @@ int HFSRocksDB::get(const HFS_KEY key, std::string& value) {
 }
 
 int HFSRocksDB::put(const HFS_KEY key, const HFSInodeValueSerialized& value) {
-    rocksdb::Status status = db->Put(rocksdb::WriteOptions(), std::to_string(key), getValueSlice(value));
+    rocksdb::Status status = db->Put(writeOptions, std::to_string(key), getValueSlice(value));
     if (!status.ok()) {
         #ifdef DEBUG
             HFSRocksDB::printStatusErr(status);
@@ -133,7 +128,7 @@ int HFSRocksDB::put(const HFS_KEY key, const HFSInodeValueSerialized& value) {
 }
 
 int HFSRocksDB::remove(const HFS_KEY key){
-    rocksdb::Status status = db->Delete(rocksdb::WriteOptions(), std::to_string(key));
+    rocksdb::Status status = db->Delete(writeOptions, std::to_string(key));
     if (!status.ok()) {
         return -1;
     }
