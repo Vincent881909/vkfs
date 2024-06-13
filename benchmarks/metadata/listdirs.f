@@ -1,9 +1,9 @@
 
 set $dir=mntdir
-set $nfiles=50000
+set $nfiles=100000
 set $meandirwidth=5
 set $nthreads=1
-set $meanfilesize=4k
+set $meanfilesize=0
 
 define fileset name=bigfileset,path=$dir,size=$meanfilesize,entries=$nfiles,dirwidth=$meandirwidth,prealloc
 
@@ -15,5 +15,5 @@ define process name=lsdir,instances=1
   }
 }
 
-run 30
+run 60
 

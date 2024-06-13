@@ -1,6 +1,6 @@
 
 set $dir=mntdir
-set $ndirs=10000
+set $ndirs=100000
 set $meandirwidth=100
 set $nthreads=1
 

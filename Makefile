@@ -65,7 +65,7 @@ benchmark5:
 benchmark6:
 	sudo filebench -f benchmarks/metadata/createfiles.f
 
-micro_benchmarks: benchmark1 benchmark2 benchmark3 benchmark4 benchmark5 benchmark6
+micro_benchmarks: benchmark2 benchmark3 benchmark5 benchmark6
 
 benchmark7:
 	sudo filebench -f benchmarks/data/fileserver.f

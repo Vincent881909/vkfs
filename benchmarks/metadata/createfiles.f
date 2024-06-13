@@ -1,8 +1,8 @@
 
 set $dir=mntdir
-set $nfiles=50000
+set $nfiles=100000
 set $meandirwidth=100
-set $meanfilesize=4k
+set $meanfilesize=0
 set $iosize=1m
 set $nthreads=1
 
