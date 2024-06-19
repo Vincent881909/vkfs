@@ -9,17 +9,6 @@ HFS_FileSystemState::HFS_FileSystemState(std::string mntdir,
     : mntdir(std::move(mntdir)), metadir(std::move(metadir)), datadir(std::move(datadir)),
       dataThreshold(dataThreshold), handler(handler) {}
 
-
-// Definition of printState function
-void HFS_FileSystemState::printState() const {
-    std::cout << "Printing State...\n";
-    std::cout << "Mount Directory: " << mntdir << std::endl;
-    std::cout << "Metadata Directory: " << metadir << std::endl;
-    std::cout << "Data Directory: " << datadir << std::endl;
-    std::cout << "Data Threshold: " << dataThreshold << std::endl;
-    std::cout << "Max Inode Number: " << maxInodeNum << std::endl;
-}
-
 void HFS_FileSystemState::initalizeRoot(){
     rootInitialized = true;
 }

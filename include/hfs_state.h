@@ -6,7 +6,7 @@
 #include "rocksdb/db.h"
 #include "../include/hfs_KeyHandler.h"
 
-#define DATA_THRESHOLD (64 * 1024);
+#define DATA_THRESHOLD (4 * 1024);
 
 class HFS_FileSystemState {
 private:
@@ -29,7 +29,6 @@ public:
 
 
     // Member functions
-    void printState() const;
     void initalizeRoot();
     bool getRootInitFlag();
     bool getIDFlag();
