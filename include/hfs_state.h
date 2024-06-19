@@ -16,7 +16,6 @@ private:
     u_int dataThreshold;
     int maxInodeNum = 0;
     bool rootInitialized = false;
-    bool idsInitialized = false;
     HFS_KeyHandler* handler = nullptr;
 
 public:
@@ -32,7 +31,6 @@ public:
     void initalizeRoot();
     bool getRootInitFlag();
     bool getIDFlag();
-    void setIDFlag();
     int getNextInodeNumber();
     void incrementInodeNumber();
     u_int getDataThreshold();

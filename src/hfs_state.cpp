@@ -17,14 +17,6 @@ bool HFS_FileSystemState::getRootInitFlag() {
     return rootInitialized;
 }
 
-bool HFS_FileSystemState::getIDFlag() {
-    return idsInitialized;
-}
-
-void HFS_FileSystemState::setIDFlag() {
-    idsInitialized = true;
-}
-
 int HFS_FileSystemState::getNextInodeNumber(){
     return maxInodeNum;
 }
