@@ -13,7 +13,7 @@
 #include <assert.h>
 #include <unistd.h>
 
-struct fuse_operations hfs_oper = {
+struct fuse_operations vkfs_operations = {
   .getattr = hfs_getattr,
   .mkdir = hfs_mkdir,
   .unlink = hfs_unlink,
@@ -45,7 +45,7 @@ void hfsUsage() {
 }
 
 int main(int argc, char *argv[]){
-
+  
     if(argc < 4){
         hfsUsage();
         return -1;
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]){
       printf("Calling fuse_main...\n");
     #endif
 
-    fuse_state = fuse_main(fuseArgs.argc, fuseArgs.argv, &hfs_oper, &hfsState);
+    fuse_state = fuse_main(fuseArgs.argc, fuseArgs.argv, &vkfs_operations, &hfsState);
 
     #ifdef DEBUG
       printf("fuse_main has exited with code: %d\n", fuse_state);
