@@ -2,7 +2,7 @@
 
 ### 1. Clone the Repository
 ````bash
-git clone https://github.com/Vincent881909/hybridfs.git
+git clone https://github.com/Vincent881909/vkfs.git
 cd hybridfs
 ````
 
