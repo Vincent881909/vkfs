@@ -4,7 +4,7 @@ BIN         := bin
 SRC         := src
 INCLUDE     := include
 LIBRARIES   := $(shell pkg-config --libs fuse3)
-EXECUTABLE  := hybridfs
+EXECUTABLE  := vkfs
 
 MOUNT_DIR   := mntdir
 METADATA_DIR := metadir

@@ -1,8 +1,8 @@
-#include "../include/hfs_fuse.h"
-#include "../include/hfs_state.h"
-#include "../include/hfs_inode.h"
-#include "../include/hfs_utils.h"
-#include "../include/hfs_rocksdb.h"
+#include "../include/vkfs_fuse.h"
+#include "../include/vkfs_state.h"
+#include "../include/vkfs_inode.h"
+#include "../include/vkfs_utils.h"
+#include "../include/vkfs_rocksdb.h"
 #include <iostream>
 #include <unistd.h>
 #include <string.h>
@@ -11,27 +11,27 @@
 #include <fuse.h>
 #include <vector>
 
-void *hfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
+void *vkfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
     #ifdef DEBUG
         printf("init called\n");
     #endif
 
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context()); 
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context()); 
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
 
-    if (!hfsState->getRootInitFlag()) { // Root directory not initialized
+    if (!vkfsState->getRootInitFlag()) { // Root directory not initialized
 
-        db->initDatabase(hfsState->getMetaDataDir());
-        HFS_KEY key;
-        keyHandler->handleEntries(hfs::ROOT_PATH,key);
+        db->initDatabase(vkfsState->getMetaDataDir());
+        VKFS_KEY key;
+        keyHandler->handleEntries(vkfs::ROOT_PATH,key);
     
         struct stat statbuf;
         memset(&statbuf, 0, sizeof(struct stat));
-        lstat(hfs::ROOT_PATH, &statbuf);
-        statbuf.st_ino = hfs::ROOT_KEY;
+        lstat(vkfs::ROOT_PATH, &statbuf);
+        statbuf.st_ino = vkfs::ROOT_KEY;
 
-        HFSInodeValueSerialized value = hfs::inode::initDirHeader(statbuf, hfs::ROOT_PATH, 0755);
+        VKFSHeaderSerialized value = vkfs::inode::initDirHeader(statbuf, vkfs::ROOT_PATH, 0755);
         db->put(key,value);
 
         delete[] value.data;
@@ -41,20 +41,20 @@ void *hfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
     cfg->attr_timeout = 10; //Cache attributes for 10 seconds in the Kernel
     cfg->auto_cache = 0; //Kernel auto cache invalidated by file modifications -> disabled
 
-    return hfsState;
+    return vkfsState;
 }
 
-int hfs_getattr(const char *path, struct stat *statbuf, struct fuse_file_info *fi) {
+int vkfs_getattr(const char *path, struct stat *statbuf, struct fuse_file_info *fi) {
 
     #ifdef DEBUG
         printf("getattr called with path: %s\n", path);
     #endif
 
     struct fuse_context* context = fuse_get_context();
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(context);
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(context);
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
 
-    HFS_KEY key;
+    VKFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
@@ -83,15 +83,15 @@ int hfs_getattr(const char *path, struct stat *statbuf, struct fuse_file_info *f
     return ret;
 }
 
-int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, 
+int vkfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, 
                 struct fuse_file_info *fi, enum fuse_readdir_flags) {
 
     #ifdef DEBUG
         printf("readdir called with path: %s\n", path);
     #endif
 
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
 
     if (filler(buf, ".", NULL, 0, FUSE_FILL_DIR_PLUS) < 0) {
         return -ENOMEM;
@@ -100,9 +100,9 @@ int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
         return -ENOMEM;
     }
 
-    HFS_KEY key;
+    VKFS_KEY key;
     keyHandler->getKeyFromPath(path,key);
-    std::vector<HFS_KEY> entries = db->getDirEntries(key);
+    std::vector<VKFS_KEY> entries = db->getDirEntries(key);
 
     for(uint32_t i = 0; i < entries.size(); i ++){
         std::string filename = db->getFilename(entries[i]);
@@ -119,27 +119,27 @@ int hfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offse
     return 0;
 }
 
-int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+int vkfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     #ifdef DEBUG
         printf("create called with path: %s and mode %u\n",path,mode);
     #endif
 
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
 
-    std::string parentDirStr = hfs::path::getParentPath(std::string(path));
+    std::string parentDirStr = vkfs::path::getParentPath(std::string(path));
     const char* parentDirPath = parentDirStr.c_str();
-    std::string fileName = hfs::path::returnFilenameFromPath(path);
+    std::string fileName = vkfs::path::returnFilenameFromPath(path);
 
-    if(fileName.length() > HFS_MAX_FILE_LEN){
+    if(fileName.length() > VKFS_MAX_FILE_LEN){
         #ifdef DEBUG
             printf("Returning -EPERM\n\n");
         #endif
         return -EPERM;
     }
 
-    HFS_KEY key;
+    VKFS_KEY key;
 
     if(keyHandler->handleEntries(path,key) < 0){
         #ifdef DEBUG
@@ -153,7 +153,7 @@ int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     statbuf.st_ino = ino_t(key);
     statbuf.st_mode = S_IFREG | mode;
 
-    HFSInodeValueSerialized value = hfs::inode::initFileHeader(statbuf, fileName, mode);
+    VKFSHeaderSerialized value = vkfs::inode::initFileHeader(statbuf, fileName, mode);
     int ret = db->put(key,value);
 
     delete[] value.data;
@@ -163,7 +163,7 @@ int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     }
 
     // Update parent's metadata
-    HFS_KEY parentKey;
+    VKFS_KEY parentKey;
     if(keyHandler->getKeyFromPath(parentDirPath,parentKey) < 0){
         return -1;
     }
@@ -175,27 +175,27 @@ int hfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     return 0;
 }
 
-int hfs_mkdir(const char *path, mode_t mode) {
+int vkfs_mkdir(const char *path, mode_t mode) {
     #ifdef DEBUG
         printf("mkdir called with path: %s and mode %u\n",path,mode);
     #endif
 
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
 
-    std::string parentDirPathStr = hfs::path::getParentPath(std::string(path));
+    std::string parentDirPathStr = vkfs::path::getParentPath(std::string(path));
     const char* parentDirPath = parentDirPathStr.c_str();
-    std::string dirNameStr = hfs::path::returnFilenameFromPath(path);
+    std::string dirNameStr = vkfs::path::returnFilenameFromPath(path);
 
-    if(dirNameStr.length() > HFS_MAX_FILE_LEN){
+    if(dirNameStr.length() > VKFS_MAX_FILE_LEN){
         #ifdef DEBUG
             printf("Returning -EPERM\n\n");
         #endif
         return -EPERM;
     }
 
-    HFS_KEY key;
+    VKFS_KEY key;
 
     if(keyHandler->handleEntries(path,key) < 0){
         #ifdef DEBUG
@@ -209,7 +209,7 @@ int hfs_mkdir(const char *path, mode_t mode) {
     statbuf.st_ino = ino_t(key);
     statbuf.st_mode = S_IFDIR | mode;
 
-    HFSInodeValueSerialized value = hfs::inode::initDirHeader(statbuf, dirNameStr, mode);
+    VKFSHeaderSerialized value = vkfs::inode::initDirHeader(statbuf, dirNameStr, mode);
     int ret = db->put(key,value);
 
     delete[] value.data;
@@ -219,7 +219,7 @@ int hfs_mkdir(const char *path, mode_t mode) {
     }
 
     // Update parent's metadata
-    HFS_KEY parentKey;
+    VKFS_KEY parentKey;
     if(keyHandler->getKeyFromPath(parentDirPath,parentKey) < 0){
         return -1;
     }
@@ -231,15 +231,15 @@ int hfs_mkdir(const char *path, mode_t mode) {
     return 0;
 }
 
-int hfs_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
+int vkfs_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
 
     #ifdef DEBUG
         printf("utimens called with path %s\n", path);
     #endif
 
-    HFSRocksDB* db = HFSRocksDB::getInstance();
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFS_KEY key;
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
@@ -255,15 +255,15 @@ int hfs_utimens(const char *path, const struct timespec tv[2], struct fuse_file_
     return db->updateMetaData(key,metaData);
 }
 
-int hfs_unlink(const char *path){
+int vkfs_unlink(const char *path){
 
     #ifdef DEBUG
         printf("unlink called with path %s\n", path);
     #endif
 
-    HFSRocksDB* db = HFSRocksDB::getInstance();
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFS_KEY key;
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
@@ -279,8 +279,8 @@ int hfs_unlink(const char *path){
     keyHandler->handleErase(path,key);
 
     // Update parent's metadata field
-    HFS_KEY parentKey;
-    std::string parentDirPath = hfs::path::getParentPath(std::string(path));
+    VKFS_KEY parentKey;
+    std::string parentDirPath = vkfs::path::getParentPath(std::string(path));
     if(keyHandler->getKeyFromPath(parentDirPath.c_str(),parentKey) < 0){
         return -1;
     }
@@ -289,14 +289,14 @@ int hfs_unlink(const char *path){
 
 }
 
-int hfs_rmdir(const char *path){
+int vkfs_rmdir(const char *path){
     #ifdef DEBUG
         printf("rmdir called with path %s\n",path);
     #endif
 
-    HFSRocksDB* db = HFSRocksDB::getInstance();
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFS_KEY key;
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
@@ -312,8 +312,8 @@ int hfs_rmdir(const char *path){
     keyHandler->handleErase(path,key);
 
     //Update parent's metadata field
-    HFS_KEY parentKey;
-    std::string parentDirPath = hfs::path::getParentPath(std::string(path));
+    VKFS_KEY parentKey;
+    std::string parentDirPath = vkfs::path::getParentPath(std::string(path));
 
     if(keyHandler->getKeyFromPath(parentDirPath.c_str(),parentKey) < 0){
         return -1;
@@ -322,7 +322,7 @@ int hfs_rmdir(const char *path){
     return db->deleteDirEntry(parentKey,key);
 }
 
-int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+int vkfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
 
     #ifdef DEBUG
         printf("read called with path %s and size: %u and offset %ld\n", path,size,offset);
@@ -330,10 +330,10 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     
     //Fetch file -> either fi or helper functions
     struct fuse_context* context = fuse_get_context();
-    HFSRocksDB* db = HFSRocksDB::getInstance();
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(context);
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    HFS_KEY key;
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(context);
+    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
+    VKFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
@@ -347,20 +347,20 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
         return -1;
     }
 
-    HFSInodeValueSerialized headerValue;
+    VKFSHeaderSerialized headerValue;
     headerValue.data = &data[0]; 
     headerValue.size = data.size();
-    HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(headerValue.data + HFS_FLAG_SIZE);
+    VKFSFileMetaData* inodeValue = reinterpret_cast<VKFSFileMetaData*>(headerValue.data + VKFS_FLAG_SIZE);
 
     if(inodeValue->has_external_data){
-        return localFS::readFromLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
+        return localFS::readFromLocalFile(path,buf,size,offset,key,vkfsState->getDataDir());
     }
 
     if(size > inodeValue->file_structure.st_size){
         size = size_t(inodeValue->file_structure.st_size);
     }
 
-    char* dataFieldptr = headerValue.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1;
+    char* dataFieldptr = headerValue.data + VKFS_FLAG_SIZE + VKFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1;
     memcpy(buf,dataFieldptr,size);
 
 
@@ -371,17 +371,17 @@ int hfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse
     return size;
 }
 
-int hfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+int vkfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
 
     #ifdef DEBUG
         printf("write called with path %s and size: %u and offset %ld\n", path,size,offset);
     #endif
 
     //Fetch file -> either fi or helper functions
-    HFSRocksDB* db = HFSRocksDB::getInstance();
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    HFS_KEY key;
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
+    VKFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
@@ -390,18 +390,18 @@ int hfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
         return -ENOENT; // Directory does not exist
     }
 
-    HFSFileMetaData header = db->getFileHeader(key);
+    VKFSFileMetaData header = db->getFileHeader(key);
 
     if(header.has_external_data){
-        int bytesWritten = localFS::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
+        int bytesWritten = localFS::writeToLocalFile(path,buf,size,offset,key,vkfsState->getDataDir());
         db->setBlob(key);
         db->setNewFileSize(key,size + offset);
         return  bytesWritten;
     }
 
-    if(size + offset > hfsState->getDataThreshold()){
-        localFS::migrateAndCleanData(key,hfsState->getDataDir(),header,path);
-        return localFS::writeToLocalFile(path,buf,size,offset,key,hfsState->getDataDir());
+    if(size + offset > vkfsState->getDataThreshold()){
+        localFS::migrateAndCleanData(key,vkfsState->getDataDir(),header,path);
+        return localFS::writeToLocalFile(path,buf,size,offset,key,vkfsState->getDataDir());
     }
 
     std::string data;
@@ -409,12 +409,12 @@ int hfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
         return -1;
     }
 
-    HFSInodeValueSerialized headerValue;
+    VKFSHeaderSerialized headerValue;
     headerValue.data = &data[0];
     headerValue.size = data.length();
 
     char* newData = nullptr;
-    hfs::inode::inlineWrite(headerValue, buf, size, newData);
+    vkfs::inode::inlineWrite(headerValue, buf, size, newData);
     db->put(key,headerValue);
 
     delete[] newData;
@@ -423,7 +423,7 @@ int hfs_write(const char *path, const char *buf, size_t size, off_t offset, stru
 }
 
 
-int hfs_open(const char *path, struct fuse_file_info *fi){
+int vkfs_open(const char *path, struct fuse_file_info *fi){
     #ifdef DEBUG
         printf("open called with path %s\n",path);
         printf("Returning 0\n\n");
@@ -431,16 +431,16 @@ int hfs_open(const char *path, struct fuse_file_info *fi){
     return 0;
 }
 
-int hfs_truncate(const char *path, off_t len, struct fuse_file_info *fi){
+int vkfs_truncate(const char *path, off_t len, struct fuse_file_info *fi){
     #ifdef DEBUG
         printf("truncate called with path %s\n",path);
         printf("Returning 0\n\n");
     #endif
 
-    HFSRocksDB* db = HFSRocksDB::getInstance();
-    HFS_KeyHandler* keyHandler = hfs::getKeyHandler(fuse_get_context());
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(fuse_get_context()->private_data);
-    HFS_KEY key;
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
+    VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
+    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
+    VKFS_KEY key;
 
     if(keyHandler->getKeyFromPath(path,key) < 0){
         #ifdef DEBUG
@@ -449,17 +449,17 @@ int hfs_truncate(const char *path, off_t len, struct fuse_file_info *fi){
         return -ENOENT; // Directory does not exist
     }
 
-    HFSFileMetaData header = db->getFileHeader(key);
+    VKFSFileMetaData header = db->getFileHeader(key);
 
-    if(len < hfsState->getDataThreshold() && !header.has_external_data){
-        hfs::inode::truncateHeaderFile(key,len,header.file_structure.st_size);
+    if(len < vkfsState->getDataThreshold() && !header.has_external_data){
+        vkfs::inode::truncateHeaderFile(key,len,header.file_structure.st_size);
         return 0;
     }
 
-    std::string fullFilePath = hfs::path::getLocalFilePath(key,hfsState->getDataDir());
+    std::string fullFilePath = vkfs::path::getLocalFilePath(key,vkfsState->getDataDir());
 
     if(!header.has_external_data){
-        localFS::migrateAndCleanData(key,hfsState->getDataDir(),header,path);
+        localFS::migrateAndCleanData(key,vkfsState->getDataDir(),header,path);
     }
 
     header.file_structure.st_size = len;
@@ -468,16 +468,16 @@ int hfs_truncate(const char *path, off_t len, struct fuse_file_info *fi){
     return truncate(fullFilePath.c_str(),len);
 }
 
-void hfs_destroy(void *private_data){
+void vkfs_destroy(void *private_data){
      #ifdef DEBUG
         printf("destroy called\n");
     #endif
 
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
     db->cleanup();
 }
 
-int hfs_flush(const char *path, struct fuse_file_info *){
+int vkfs_flush(const char *path, struct fuse_file_info *){
     #ifdef DEBUG
         printf("flush called with path %s\n",path);
         printf("Returning 0\n\n");
@@ -485,7 +485,7 @@ int hfs_flush(const char *path, struct fuse_file_info *){
     return 0;
 }
 
-int hfs_fallocate(const char *path, int mode, off_t offset, off_t len, struct fuse_file_info *fi){
+int vkfs_fallocate(const char *path, int mode, off_t offset, off_t len, struct fuse_file_info *fi){
     #ifdef DEBUG
         printf("fallocate called with path %s\n",path);
         printf("Returning 0\n\n");
@@ -493,7 +493,7 @@ int hfs_fallocate(const char *path, int mode, off_t offset, off_t len, struct fu
     return 0;
 }
 
-int hfs_release(const char *path, struct fuse_file_info *){
+int vkfs_release(const char *path, struct fuse_file_info *){
     #ifdef DEBUG
         printf("release called with path %s\n",path);
         printf("Returning 0\n\n");
@@ -502,7 +502,7 @@ int hfs_release(const char *path, struct fuse_file_info *){
 }
 
 
-int hfs_fsync(const char *path, int, struct fuse_file_info *){
+int vkfs_fsync(const char *path, int, struct fuse_file_info *){
     #ifdef DEBUG
         printf("fsync called with path %s\n",path);
         printf("Returning 0\n\n");

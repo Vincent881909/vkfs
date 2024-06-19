@@ -1,10 +1,10 @@
 #define FUSE_USE_VERSION 31
 
-#include "../include/hfs_fuse.h"
-#include "../include/hfs_state.h"
-#include "../include/hfs_utils.h"
-#include "../include/hfs_KeyHandler.h"
-#include "../include/hfs_rocksdb.h"
+#include "../include/vkfs_fuse.h"
+#include "../include/vkfs_state.h"
+#include "../include/vkfs_utils.h"
+#include "../include/vkfs_key_handler.h"
+#include "../include/vkfs_rocksdb.h"
 #include <iostream>
 #include <fuse.h>
 #include <assert.h>
@@ -14,26 +14,26 @@
 #include <unistd.h>
 
 struct fuse_operations vkfs_operations = {
-  .getattr = hfs_getattr,
-  .mkdir = hfs_mkdir,
-  .unlink = hfs_unlink,
-  .rmdir = hfs_rmdir,
-  .truncate = hfs_truncate,
-  .open = hfs_open,
-  .read = hfs_read,
-  .write = hfs_write,
-  .flush = hfs_flush,
-  .release = hfs_release,
-  .fsync = hfs_fsync,
-  .readdir = hfs_readdir,
-  .init = hfs_init,
-  .destroy = hfs_destroy,
-  .create = hfs_create,
-  .utimens = hfs_utimens,
-  .fallocate = hfs_fallocate,
+  .getattr = vkfs_getattr,
+  .mkdir = vkfs_mkdir,
+  .unlink = vkfs_unlink,
+  .rmdir = vkfs_rmdir,
+  .truncate = vkfs_truncate,
+  .open = vkfs_open,
+  .read = vkfs_read,
+  .write = vkfs_write,
+  .flush = vkfs_flush,
+  .release = vkfs_release,
+  .fsync = vkfs_fsync,
+  .readdir = vkfs_readdir,
+  .init = vkfs_init,
+  .destroy = vkfs_destroy,
+  .create = vkfs_create,
+  .utimens = vkfs_utimens,
+  .fallocate = vkfs_fallocate,
 };
 
-void hfsUsage() {
+void vkfsUsage() {
     printf("Usage: hybridfs <mount_dir> <meta_dir> <data_dir>\n");
     printf("\n");
     printf("    <mount_dir>  - Directory to mount the file system\n");
@@ -47,7 +47,7 @@ void hfsUsage() {
 int main(int argc, char *argv[]){
   
     if(argc < 4){
-        hfsUsage();
+        vkfsUsage();
         return -1;
     }
  
@@ -64,14 +64,14 @@ int main(int argc, char *argv[]){
   
     int fuse_state;
     u_int dataThreshold = DATA_THRESHOLD;
-    HFS_KeyHandler newHandler;
-    HFS_FileSystemState hfsState(mountdir,metadir,datadir,dataThreshold,&newHandler);
+    VKFS_KeyHandler newHandler;
+    VKFS_FileSystemState vkfsState(mountdir,metadir,datadir,dataThreshold,&newHandler);
 
     #ifdef DEBUG
       printf("Calling fuse_main...\n");
     #endif
 
-    fuse_state = fuse_main(fuseArgs.argc, fuseArgs.argv, &vkfs_operations, &hfsState);
+    fuse_state = fuse_main(fuseArgs.argc, fuseArgs.argv, &vkfs_operations, &vkfsState);
 
     #ifdef DEBUG
       printf("fuse_main has exited with code: %d\n", fuse_state);

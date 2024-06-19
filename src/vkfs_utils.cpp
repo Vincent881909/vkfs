@@ -1,7 +1,7 @@
-#include "../include/hfs_utils.h"
-#include "../include/hfs_inode.h"
-#include "../include/hfs_state.h"
-#include "../include/hfs_rocksdb.h"
+#include "../include/vkfs_utils.h"
+#include "../include/vkfs_inode.h"
+#include "../include/vkfs_state.h"
+#include "../include/vkfs_rocksdb.h"
 #include <iostream>
 #include <unistd.h>
 #include <sys/types.h>
@@ -14,29 +14,29 @@
 
 namespace fs = std::filesystem;
 
-namespace hfs {
+namespace vkfs {
 
-HFS_KeyHandler* getKeyHandler(struct fuse_context* context){
-    HFS_FileSystemState *hfsState = static_cast<HFS_FileSystemState*>(context->private_data);
-    return hfsState->getKeyHandler();
+VKFS_KeyHandler* getKeyHandler(struct fuse_context* context){
+    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(context->private_data);
+    return vkfsState->getKeyHandler();
 
 }
 
 namespace inode {
 
-void inlineWrite(HFSInodeValueSerialized& inodeData, const char* buf, size_t size, char*& newData) {
-    HFSFileMetaData* inodeValue = reinterpret_cast<HFSFileMetaData*>(inodeData.data + HFS_FLAG_SIZE);
+void inlineWrite(VKFSHeaderSerialized& inodeData, const char* buf, size_t size, char*& newData) {
+    VKFSFileMetaData* inodeValue = reinterpret_cast<VKFSFileMetaData*>(inodeData.data + VKFS_FLAG_SIZE);
     inodeValue->file_structure.st_size = size;
 
     if (inodeValue->file_structure.st_size == 0 && size == 0) {
         return;
     }
 
-    size_t memoryNeeded = HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1 + size;
+    size_t memoryNeeded = VKFS_FLAG_SIZE + VKFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1 + size;
     newData = new char[memoryNeeded];
 
     memcpy(newData, inodeData.data, memoryNeeded - size); // Copy metadata
-    char* dataBuf = newData + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1;
+    char* dataBuf = newData + VKFS_FLAG_SIZE + VKFS_FILE_HEADER_SIZE + inodeValue->filename_len + 1;
     memcpy(dataBuf, buf, size);
 
     inodeData.data = newData;
@@ -68,20 +68,20 @@ void initStat(struct stat &statbuf, mode_t mode) {
     statbuf.st_blocks = 0;
 }
 
-HFSInodeValueSerialized initDirHeader(struct stat fileStructure, std::string filename, mode_t mode){
-    struct HFSInodeValueSerialized dirHeaderValue;
+VKFSHeaderSerialized initDirHeader(struct stat fileStructure, std::string filename, mode_t mode){
+    struct VKFSHeaderSerialized dirHeaderValue;
 
-    dirHeaderValue.size = HFS_FLAG_SIZE + HFS_DIR_HEADER_SIZE + filename.length() + 1 ;
+    dirHeaderValue.size = VKFS_FLAG_SIZE + VKFS_DIR_HEADER_SIZE + filename.length() + 1 ;
     dirHeaderValue.data = new char[dirHeaderValue.size];
 
-    memcpy(dirHeaderValue.data,&HFS_DIR_FLAG,HFS_FLAG_SIZE);
+    memcpy(dirHeaderValue.data,&VKFS_DIR_FLAG,VKFS_FLAG_SIZE);
 
-    struct HFSDirMetaData* dirHeader = reinterpret_cast<struct HFSDirMetaData*>(dirHeaderValue.data + HFS_FLAG_SIZE);
+    struct VKFSDirMetaData* dirHeader = reinterpret_cast<struct VKFSDirMetaData*>(dirHeaderValue.data + VKFS_FLAG_SIZE);
     initStat(fileStructure, S_IFDIR | mode);
     dirHeader->file_structure = fileStructure;
     dirHeader->filename_len = filename.length();
 
-    char* name_buf = dirHeaderValue.data + HFS_FLAG_SIZE + HFS_DIR_HEADER_SIZE;
+    char* name_buf = dirHeaderValue.data + VKFS_FLAG_SIZE + VKFS_DIR_HEADER_SIZE;
     memcpy(name_buf, filename.c_str(), filename.length());
     name_buf[dirHeader->filename_len] = '\0';
 
@@ -89,33 +89,33 @@ HFSInodeValueSerialized initDirHeader(struct stat fileStructure, std::string fil
 
 }
 
-HFSInodeValueSerialized initFileHeader(struct stat fileStructure, std::string filename, mode_t mode) {
-    struct HFSInodeValueSerialized inode_data;
+VKFSHeaderSerialized initFileHeader(struct stat fileStructure, std::string filename, mode_t mode) {
+    struct VKFSHeaderSerialized inode_data;
 
-    inode_data.size = HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + filename.length() + 1;
+    inode_data.size = VKFS_FLAG_SIZE + VKFS_FILE_HEADER_SIZE + filename.length() + 1;
     inode_data.data = new char[inode_data.size];
 
-    memcpy(inode_data.data,&HFS_FILE_FLAG,HFS_FLAG_SIZE);
+    memcpy(inode_data.data,&VKFS_FILE_FLAG,VKFS_FLAG_SIZE);
     
-    struct HFSFileMetaData* inode_value = reinterpret_cast<struct HFSFileMetaData*>(inode_data.data + HFS_FLAG_SIZE);
+    struct VKFSFileMetaData* inode_value = reinterpret_cast<struct VKFSFileMetaData*>(inode_data.data + VKFS_FLAG_SIZE);
     initStat(fileStructure, mode);
     inode_value->file_structure = fileStructure;
     inode_value->has_external_data = false;
     inode_value->filename_len = filename.length();
 
-    char* name_buf = inode_data.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE;
+    char* name_buf = inode_data.data + VKFS_FLAG_SIZE + VKFS_FILE_HEADER_SIZE;
     memcpy(name_buf, filename.c_str(), filename.length());
     name_buf[inode_value->filename_len] = '\0';
 
     return inode_data;
 }
 
-void truncateHeaderFile( HFS_KEY key,off_t len,size_t currentSize){
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+void truncateHeaderFile( VKFS_KEY key,off_t len,size_t currentSize){
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
     std::string data;
     db->get(key,data);
 
-    HFSInodeValueSerialized headervalue;
+    VKFSHeaderSerialized headervalue;
     headervalue.data = &data[0];
     headervalue.size = data.size();
 
@@ -130,7 +130,7 @@ void truncateHeaderFile( HFS_KEY key,off_t len,size_t currentSize){
         headervalue.data = newData;
     }
 
-    HFSFileMetaData* metaData = reinterpret_cast<HFSFileMetaData*>(headervalue.data + HFS_FLAG_SIZE);
+    VKFSFileMetaData* metaData = reinterpret_cast<VKFSFileMetaData*>(headervalue.data + VKFS_FLAG_SIZE);
     metaData->file_structure.st_size = len;
 
     db->put(key,headervalue);
@@ -182,7 +182,7 @@ std::string getParentPath(const std::string& path) {
     return parentDir;
 }
 
-std::string getLocalFilePath(HFS_KEY key,std::string datadir){
+std::string getLocalFilePath(VKFS_KEY key,std::string datadir){
     std::string J = std::to_string(key / 1000);
     std::string I = std::to_string(key);
     std::string projectPath = getProjectRoot();
@@ -193,11 +193,11 @@ std::string getLocalFilePath(HFS_KEY key,std::string datadir){
 
 
 } // namespace path
-}// namespace hfs
+}// namespace vkfs
 
 namespace localFS {
-int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offset, HFS_KEY key,std::string datadir){
-    fs::path fullPath = fs::path(hfs::path::getLocalFilePath(key,datadir));
+int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offset, VKFS_KEY key,std::string datadir){
+    fs::path fullPath = fs::path(vkfs::path::getLocalFilePath(key,datadir));
 
     if (!fs::exists(fullPath.parent_path())) {
         fs::create_directories(fullPath.parent_path());
@@ -219,8 +219,8 @@ int writeToLocalFile(const char *path, const char *buf, size_t size, off_t offse
     return bytesWritten;
 }
 
-int readFromLocalFile(const char *path, const char *buf, size_t size, off_t offset,HFS_KEY key,std::string datadir){
-    fs::path fullPath = fs::path(hfs::path::getLocalFilePath(key,datadir));
+int readFromLocalFile(const char *path, const char *buf, size_t size, off_t offset,VKFS_KEY key,std::string datadir){
+    fs::path fullPath = fs::path(vkfs::path::getLocalFilePath(key,datadir));
 
     int fd = open(fullPath.c_str(), O_RDONLY);
     if (fd == -1) {
@@ -239,17 +239,17 @@ int readFromLocalFile(const char *path, const char *buf, size_t size, off_t offs
     return bytesRead;
 }
 
-void migrateAndCleanData(HFS_KEY key,std::string datadir,HFSFileMetaData header,const char* path){
-    HFSRocksDB* db = HFSRocksDB::getInstance();
+void migrateAndCleanData(VKFS_KEY key,std::string datadir,VKFSFileMetaData header,const char* path){
+    VKFSRocksDB* db = VKFSRocksDB::getInstance();
     
     std::string data;
     db->get(key,data);
 
-    HFSInodeValueSerialized headerValue;
+    VKFSHeaderSerialized headerValue;
     headerValue.data = &data[0];
     headerValue.size = data.size();
 
-    const char* dataOffs = headerValue.data + HFS_FLAG_SIZE + HFS_FILE_HEADER_SIZE + header.filename_len + 1;
+    const char* dataOffs = headerValue.data + VKFS_FLAG_SIZE + VKFS_FILE_HEADER_SIZE + header.filename_len + 1;
 
     //Copy existing data to local file system
     localFS::writeToLocalFile(path,dataOffs,header.file_structure.st_size,0,key,datadir);

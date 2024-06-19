@@ -1,14 +1,14 @@
-#include "../include/hfs_KeyHandler.h"
+#include "../include/vkfs_key_handler.h"
 #include <shared_mutex>
 
-HFS_KeyHandler::HFS_KeyHandler() : currentKey(MIN_KEY) {}
+VKFS_KeyHandler::VKFS_KeyHandler() : currentKey(MIN_KEY) {}
 
-int HFS_KeyHandler::getNextKey() {
+int VKFS_KeyHandler::getNextKey() {
     std::shared_lock<std::shared_mutex> lock(mutex);
     if (currentKey == MAX_KEY && queue.empty()) {
         return -1;  // overflow
     }
-    HFS_KEY nextKey;
+    VKFS_KEY nextKey;
     if (!queue.empty()) {
         nextKey = queue.front();
         queue.pop();
@@ -18,21 +18,21 @@ int HFS_KeyHandler::getNextKey() {
     return nextKey;
 }
 
-void HFS_KeyHandler::makeNewEntry(HFS_KEY key, const char* path) {
+void VKFS_KeyHandler::makeNewEntry(VKFS_KEY key, const char* path) {
     std::unique_lock<std::shared_mutex> lock(mutex);
     map[std::string(path)] = key;
 }
 
-void HFS_KeyHandler::recycleKey(HFS_KEY key) {
+void VKFS_KeyHandler::recycleKey(VKFS_KEY key) {
     queue.push(key);
 }
 
-bool HFS_KeyHandler::entryExists(const char* path) {
+bool VKFS_KeyHandler::entryExists(const char* path) {
     std::shared_lock<std::shared_mutex> lock(mutex);
     return map.find(std::string(path)) != map.end();
 }
 
-int HFS_KeyHandler::getKeyFromPath(const char* path, HFS_KEY &key) {
+int VKFS_KeyHandler::getKeyFromPath(const char* path, VKFS_KEY &key) {
     if (!entryExists(path)) {
         return -1;
     }
@@ -41,7 +41,7 @@ int HFS_KeyHandler::getKeyFromPath(const char* path, HFS_KEY &key) {
     return 0;
 }
 
-void HFS_KeyHandler::eraseEntry(const char* path) {
+void VKFS_KeyHandler::eraseEntry(const char* path) {
     if (path == nullptr) {
         return;
     }
@@ -55,7 +55,7 @@ void HFS_KeyHandler::eraseEntry(const char* path) {
     map.erase(pathStr);
 }
 
-int HFS_KeyHandler::handleEntries(const char* path, HFS_KEY &key) {
+int VKFS_KeyHandler::handleEntries(const char* path, VKFS_KEY &key) {
     if (entryExists(path)) {
         return -1;
     }
@@ -66,7 +66,7 @@ int HFS_KeyHandler::handleEntries(const char* path, HFS_KEY &key) {
     return 0;
 }
 
-int HFS_KeyHandler::handleErase(const char* path, HFS_KEY key) {
+int VKFS_KeyHandler::handleErase(const char* path, VKFS_KEY key) {
     if (!entryExists(path)) {
         return -1;
     }
