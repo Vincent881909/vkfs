@@ -6,3 +6,5 @@
 hybridfs
 TODO.txt
 /bin
+*.py
+*.svg
