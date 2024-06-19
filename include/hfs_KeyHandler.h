@@ -9,7 +9,7 @@
 #include <mutex>
 #include <shared_mutex>
 
-#define MIN_KEY 0
+#define MIN_KEY 1
 #define MAX_KEY UINT32_MAX
 
 typedef uint32_t HFS_KEY;
