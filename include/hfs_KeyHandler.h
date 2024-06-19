@@ -17,8 +17,8 @@ typedef uint32_t HFS_KEY;
 class HFS_KeyHandler {
 private:
     HFS_KEY currentKey;
-    std::unordered_map<std::string, uint64_t> map;
-    std::queue<uint64_t> queue;
+    std::unordered_map<std::string, HFS_KEY> map;
+    std::queue<HFS_KEY> queue;
     mutable std::shared_mutex mutex;
 
 public:
