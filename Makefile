@@ -46,34 +46,26 @@ clean:
 $(ROCKSDB_LIB):
 	cd $(ROCKSDB_DIR) && $(MAKE) static_lib
 
-.PHONY: benchmark1 benchmark2 benchmark3 benchmark4 benchmark5 benchmark6 benchmark7 benchmark8 benchmark9 micro_benchmarks macro_benchmarks
-benchmark1:
-	sudo filebench -f benchmarks/metadata/deletefiles.f
+.PHONY: benchmark1 benchmark2 benchmark3 benchmark4 benchmark5 benchmark6 micro_benchmarks macro_benchmarks
 
-benchmark2:
+benchmark1:
 	sudo filebench -f benchmarks/metadata/listdirs.f
 
-benchmark3:
+benchmark2:
 	sudo filebench -f benchmarks/metadata/statfiles.f
 
-benchmark4:
-	sudo filebench -f benchmarks/metadata/makedirs.f
-
-benchmark5:
+benchmark3:
 	sudo filebench -f benchmarks/metadata/removedirs.f
 
-benchmark6:
+benchmark4:
 	sudo filebench -f benchmarks/metadata/createfiles.f
 
-micro_benchmarks: benchmark2 benchmark3 benchmark5 benchmark6
+micro_benchmarks: benchmark1 benchmark2 benchmark3 benchmark4
 
-benchmark7:
+benchmark5:
 	sudo filebench -f benchmarks/data/fileserver.f
 
-benchmark8:
-	sudo filebench -f benchmarks/data/varmail.f
-
-benchmark9:
+benchmark6:
 	sudo filebench -f benchmarks/data/webserver.f
 
-macro_benchmarks: benchmark7 benchmark8 benchmark9
+macro_benchmarks: benchmark5 benchmark6
