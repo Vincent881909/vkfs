@@ -216,6 +216,7 @@ int vkfs_mkdir(const char *path, mode_t mode) {
         return -1;
     }
 
+    // Increment dir entry link of parent
     if(db->incrementDirLinkCount(parentKey,key) < 0){
         return -1;
     }
@@ -320,7 +321,6 @@ int vkfs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
         printf("read called with path %s and size: %u and offset %ld\n", path,size,offset);
     #endif
     
-    //Fetch file -> either fi or helper functions
     struct fuse_context* context = fuse_get_context();
     VKFSRocksDB* db = VKFSRocksDB::getInstance();
     VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(context);
@@ -369,7 +369,6 @@ int vkfs_write(const char *path, const char *buf, size_t size, off_t offset, str
         printf("write called with path %s and size: %u and offset %ld\n", path,size,offset);
     #endif
 
-    //Fetch file -> either fi or helper functions
     VKFSRocksDB* db = VKFSRocksDB::getInstance();
     VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
     VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);

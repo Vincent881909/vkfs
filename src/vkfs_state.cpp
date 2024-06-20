@@ -1,6 +1,5 @@
 #include "../include/vkfs_state.h"
 
-// Constructor definition
 VKFS_FileSystemState::VKFS_FileSystemState(std::string mntdir,
                                          std::string metadir,
                                          std::string datadir,
