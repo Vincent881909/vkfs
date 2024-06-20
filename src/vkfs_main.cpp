@@ -34,14 +34,14 @@ struct fuse_operations vkfs_operations = {
 };
 
 void vkfsUsage() {
-    printf("Usage: hybridfs <mount_dir> <meta_dir> <data_dir>\n");
+    printf("Usage: vkfs <mount_dir> <meta_dir> <data_dir>\n");
     printf("\n");
     printf("    <mount_dir>  - Directory to mount the file system\n");
     printf("    <meta_dir>   - Directory to store metadata\n");
     printf("    <data_dir>   - Directory to store data in underlying file system\n");
     printf("\n");
     printf("Example:\n");
-    printf("    ./hybridfs mntdir metadir datadir\n");
+    printf("    ./vkfs mntdir metadir datadir\n");
 }
 
 int main(int argc, char *argv[]){

@@ -46,7 +46,7 @@ void VKFSRocksDB::initOptions(){
     tableOptions.optimize_filters_for_memory = true;
 
     //Enable WAL
-    writeOptions.disableWAL = true;
+    writeOptions.disableWAL = false;
 
 }
 

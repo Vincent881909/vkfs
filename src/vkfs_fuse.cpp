@@ -509,6 +509,3 @@ int vkfs_fsync(const char *path, int, struct fuse_file_info *){
     #endif
     return 0;
 }
-
-
-
