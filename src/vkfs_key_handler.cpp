@@ -1,5 +1,4 @@
 #include "../include/vkfs_key_handler.h"
-#include <shared_mutex>
 
 VKFS_KeyHandler::VKFS_KeyHandler() : currentKey(MIN_KEY) {}
 

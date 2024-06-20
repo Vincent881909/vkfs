@@ -2,16 +2,8 @@
 
 #include "../include/vkfs_fuse.h"
 #include "../include/vkfs_state.h"
-#include "../include/vkfs_utils.h"
 #include "../include/vkfs_key_handler.h"
-#include "../include/vkfs_rocksdb.h"
 #include <iostream>
-#include <fuse.h>
-#include <assert.h>
-#include <string.h>
-#include "rocksdb/db.h"
-#include <assert.h>
-#include <unistd.h>
 
 struct fuse_operations vkfs_operations = {
   .getattr = vkfs_getattr,

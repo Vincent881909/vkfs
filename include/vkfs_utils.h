@@ -3,12 +3,15 @@
 
 #include "vkfs_inode.h"
 #include "vkfs_key_handler.h"
-#include <fuse.h>
-#include <string>
-#include <iostream>
-#include <vector>
+#include "vkfs_inode.h"
+#include "vkfs_rocksdb.h"
+#include "vkfs_state.h"
+
 #include "rocksdb/db.h"
 #include <rocksdb/slice.h>
+#include <fuse.h>
+
+#include <iostream>
 #include <unistd.h>
 #include <filesystem>
 

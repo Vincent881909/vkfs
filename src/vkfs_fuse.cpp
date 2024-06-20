@@ -3,13 +3,7 @@
 #include "../include/vkfs_inode.h"
 #include "../include/vkfs_utils.h"
 #include "../include/vkfs_rocksdb.h"
-#include <iostream>
-#include <unistd.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <time.h>
-#include <fuse.h>
-#include <vector>
+
 
 void *vkfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
     #ifdef DEBUG
@@ -125,7 +119,6 @@ int vkfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     #endif
 
     VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
-    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
     VKFSRocksDB* db = VKFSRocksDB::getInstance();
 
     std::string parentDirStr = vkfs::path::getParentPath(std::string(path));
@@ -181,7 +174,6 @@ int vkfs_mkdir(const char *path, mode_t mode) {
     #endif
 
     VKFS_KeyHandler* keyHandler = vkfs::getKeyHandler(fuse_get_context());
-    VKFS_FileSystemState *vkfsState = static_cast<VKFS_FileSystemState*>(fuse_get_context()->private_data);
     VKFSRocksDB* db = VKFSRocksDB::getInstance();
 
     std::string parentDirPathStr = vkfs::path::getParentPath(std::string(path));
@@ -356,7 +348,7 @@ int vkfs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
         return localFS::readFromLocalFile(path,buf,size,offset,key,vkfsState->getDataDir());
     }
 
-    if(size > inodeValue->file_structure.st_size){
+    if(size > size_t(inodeValue->file_structure.st_size)){
         size = size_t(inodeValue->file_structure.st_size);
     }
 
