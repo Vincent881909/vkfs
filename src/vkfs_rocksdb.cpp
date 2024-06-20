@@ -85,7 +85,7 @@ void VKFSRocksDB::cleanup(){
 }
 
 void VKFSRocksDB::printStatusErr(rocksdb::Status status){
-    std::cout << "Operation successful: " << status.ToString() << std::endl;
+    std::cout << "RocksDB error: " << status.ToString() << std::endl;
 }
 
 int VKFSRocksDB::get(const VKFS_KEY key, std::string& value) {
@@ -113,6 +113,9 @@ int VKFSRocksDB::put(const VKFS_KEY key, const VKFSHeaderSerialized& value) {
 int VKFSRocksDB::remove(const VKFS_KEY key){
     rocksdb::Status status = db->Delete(writeOptions, std::to_string(key));
     if (!status.ok()) {
+        #ifdef DEBUG
+            HFSRocksDB::printStatusErr(status);
+        #endif
         return -1;
     }
     return 0;
