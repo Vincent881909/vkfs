@@ -27,9 +27,6 @@ public:
 
     void initalizeRoot();
     bool getRootInitFlag();
-    bool getIDFlag();
-    int getNextInodeNumber();
-    void incrementInodeNumber();
     u_int getDataThreshold();
     void setKeyHandler(VKFS_KeyHandler* newHandler);
     VKFS_KeyHandler* getKeyHandler() const;

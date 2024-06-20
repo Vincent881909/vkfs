@@ -17,14 +17,6 @@ bool VKFS_FileSystemState::getRootInitFlag() {
     return rootInitialized;
 }
 
-int VKFS_FileSystemState::getNextInodeNumber(){
-    return maxInodeNum;
-}
-
-void VKFS_FileSystemState::incrementInodeNumber(){
-    maxInodeNum++;
-}
-
 u_int VKFS_FileSystemState::getDataThreshold(){
     return dataThreshold;
 }
