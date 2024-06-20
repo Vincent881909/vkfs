@@ -2,8 +2,8 @@
 
 ### 1. Clone the Repository
 ````bash
-git clone https://github.com/Vincent881909/hybridfs.git
-cd hybridfs
+git clone https://github.com/Vincent881909/vkfs.git
+cd vkfs
 ````
 
 ### 2. Install Dependencies
