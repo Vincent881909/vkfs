@@ -4,7 +4,6 @@
 #include "../include/vkfs_utils.h"
 #include "../include/vkfs_rocksdb.h"
 
-
 void *vkfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
     #ifdef DEBUG
         printf("init called\n");
@@ -413,15 +412,6 @@ int vkfs_write(const char *path, const char *buf, size_t size, off_t offset, str
     return size;
 }
 
-
-int vkfs_open(const char *path, struct fuse_file_info *fi){
-    #ifdef DEBUG
-        printf("open called with path %s\n",path);
-        printf("Returning 0\n\n");
-    #endif
-    return 0;
-}
-
 int vkfs_truncate(const char *path, off_t len, struct fuse_file_info *fi){
     #ifdef DEBUG
         printf("truncate called with path %s\n",path);
@@ -466,6 +456,18 @@ void vkfs_destroy(void *private_data){
 
     VKFSRocksDB* db = VKFSRocksDB::getInstance();
     db->cleanup();
+}
+
+/*
+Some functions that are commonly called but do not make sense 
+in my implementation so they effectively do nothing
+*/
+int vkfs_open(const char *path, struct fuse_file_info *fi){
+    #ifdef DEBUG
+        printf("open called with path %s\n",path);
+        printf("Returning 0\n\n");
+    #endif
+    return 0;
 }
 
 int vkfs_flush(const char *path, struct fuse_file_info *){
