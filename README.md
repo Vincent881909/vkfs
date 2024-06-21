@@ -1,3 +1,6 @@
+# vkFS
+vkFS is a Hybrid Key-Value Store File System leveraging RocksDB. This artificat is part of my Bachelor Thesis work entitled: "Optimizing Metadata Handling with vkFS: A Hybrid Key-Value Store File System leveraging RocksDB".
+
 ## Installation Guide
 
 ### 1. Clone the Repository
